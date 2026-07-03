@@ -31,6 +31,7 @@ async function enrichAvatars(profiles: RawProfile[], max = 14): Promise<void> {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // allow the WhatsMyName sweep to finish (Vercel Pro)
 
 function norm(s?: string): string {
   return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -123,7 +124,7 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
       }
     }
 
-    const base = p.unverified ? (exact ? 42 : 32) : p.declared ? 60 : p.derived ? (exact ? 48 : 38) : (exact ? 62 : 46);
+    const base = p.unverified ? (exact ? 55 : 42) : p.declared ? 60 : p.derived ? (exact ? 48 : 38) : (exact ? 62 : 46);
     let confidence = base + crossBoost;
     if (p.displayName) confidence += 6;
     if (p.bio) confidence += 5;
@@ -146,7 +147,7 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
 
 export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("username") || "").trim();
-  const depth = clamp(parseInt(req.nextUrl.searchParams.get("depth") || "100", 10) || 100, 1, 250);
+  const depth = clamp(parseInt(req.nextUrl.searchParams.get("depth") || "120", 10) || 120, 1, 300);
   if (!q || q.length > 128) {
     return NextResponse.json({ error: "invalid input" }, { status: 400 });
   }
@@ -182,12 +183,18 @@ export async function GET(req: NextRequest) {
       checked = wmn.checked; totalSites = wmn.total;
     }
 
-    // dedupe: prefer the richer API profile per platform, then drop duplicate ids
+    // dedupe: prefer the richer API profile per platform, then collapse duplicates
+    // by id AND by platform+handle (community WhatsMyName data has near-dup entries)
     const seen = new Set(apiProfiles.map((p) => norm(p.platform)));
     const mergedRaw = [...apiProfiles, ...wmnHits.filter((w) => !seen.has(norm(w.platform)))];
     const byId = new Map<string, RawProfile>();
-    for (const p of mergedRaw) if (!byId.has(p.id)) byId.set(p.id, p);
-    const merged = [...byId.values()];
+    const byKey = new Set<string>();
+    const merged: RawProfile[] = [];
+    for (const p of mergedRaw) {
+      const key = norm(p.platform) + "|" + norm(p.handle.replace(/^u\//, ""));
+      if (byId.has(p.id) || byKey.has(key)) continue;
+      byId.set(p.id, p); byKey.add(key); merged.push(p);
+    }
 
     // expand declared/verified links (Keybase, Gravatar) into connected nodes + edges
     const edges = new Map<string, Set<string>>();

@@ -51,7 +51,23 @@ function disc(name: string): string {
   return (a.slice(0, 2) || "WM").toUpperCase();
 }
 
-async function checkSite(site: WmnSite, username: string, timeoutMs = 5000): Promise<RawProfile | null> {
+// Popular / mainstream sites first, so the depth cap always covers where real
+// people actually are (not just alphabetical/niche entries).
+const POPULAR = [
+  "instagram", "tiktok", "twitter", "x", "facebook", "snapchat", "youtube", "pinterest",
+  "reddit", "telegram", "spotify", "soundcloud", "steam", "twitch", "github", "gitlab",
+  "linktree", "linktr", "patreon", "onlyfans", "medium", "tumblr", "vimeo", "flickr",
+  "gravatar", "keybase", "mastodon", "cashapp", "venmo", "paypal", "aboutme", "behance",
+  "dribbble", "replit", "kaggle", "chess", "lichess", "strava", "goodreads", "letterboxd",
+  "lastfm", "deviantart", "wattpad", "quora", "vk", "discord", "twitch", "ebay", "etsy",
+];
+function popRank(name: string): number {
+  const n = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (let i = 0; i < POPULAR.length; i++) if (n.includes(POPULAR[i])) return i;
+  return 999;
+}
+
+async function checkSite(site: WmnSite, username: string, timeoutMs = 3500): Promise<RawProfile | null> {
   const url = site.uri_check.replace(/\{account\}/g, encodeURIComponent(username));
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -106,9 +122,10 @@ async function pool<T, R>(items: T[], limit: number, worker: (x: T) => Promise<R
  * `depth` caps how many sites are checked per request (Vercel function time limit);
  * the cap is reported by the caller so coverage is never silently truncated.
  */
-export async function scanWmn(username: string, depth = 100, concurrency = 20): Promise<{ hits: RawProfile[]; checked: number; total: number }> {
+export async function scanWmn(username: string, depth = 120, concurrency = 40): Promise<{ hits: RawProfile[]; checked: number; total: number }> {
   const sites = await loadSites();
-  const subset = sites.slice(0, Math.max(1, depth));
+  const ordered = [...sites].sort((a, b) => popRank(a.name) - popRank(b.name));
+  const subset = ordered.slice(0, Math.max(1, depth));
   const results = await pool(subset, concurrency, (s) => checkSite(s, username));
   return { hits: results.filter((x): x is RawProfile => x != null), checked: subset.length, total: sites.length };
 }

@@ -42,7 +42,7 @@ components/     # OrbitBoard.tsx — the Orbit view (canvas + spring physics)
 lib/            # signals.ts (typed model) · connectors.ts (13 public APIs)
                 # wmn.ts (WhatsMyName) · phash.ts (avatar hashing)
                 # email.ts (email→accounts) · cases.ts (local persistence)
-docs/           # architecture, osint-tools-research, llm-correlation (FR)
+docs/           # architecture, osint-tools-research, llm-correlation
 ```
 
 ## Live connectors (real scan)

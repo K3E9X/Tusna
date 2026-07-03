@@ -1,164 +1,162 @@
-# Panorama des outils OSINT pour Tusna (recherche 2026)
+# OSINT tools landscape for Tusna (2026 research)
 
-> Recherche menée en juillet 2026 par une équipe d'agents (infra, email/téléphone, pseudos, visage, threat intel, frameworks) + synthèse experte.
-> Objectif : aller **au-delà des outils célèbres** et couvrir tout ce qui sert la **corrélation d'identité** (présence d'une personne/pseudo sur le net), **open source ET commercial**.
-> Convention de statut : 🟢 gratuit · 🟡 freemium · 🔴 payant · ⚠️ instable/déclin · ✝️ mort · ⚖️ réserve légale/éthique.
-> Note collecte : plusieurs pages officielles (Censys, Shodan store, ZoomEye, FOFA, Epieos, HIBP) renvoient un HTTP 403 aux robots ; chiffres issus de la doc officielle et de sources secondaires récentes recoupées, à re-vérifier au dollar près en direct.
+> Research done in July 2026 by an agent team (infra, email/phone, usernames, face, threat intel, frameworks) + expert synthesis.
+> Goal: go **beyond the famous tools** and cover everything useful for **identity correlation** (a person/handle's presence on the net), **open source AND commercial**.
+> Status legend: 🟢 free · 🟡 freemium · 🔴 paid · ⚠️ unstable/declining · ✝️ dead · ⚖️ legal/ethical caveat.
+> Collection note: several official pages (Censys, Shodan store, ZoomEye, FOFA, Epieos, HIBP) return HTTP 403 to bots; figures come from official docs and cross-checked recent secondary sources — re-verify to the dollar live.
 
 ---
 
-## Top « sous-cotés mais précieux » à intégrer en priorité
+## Top "underrated but valuable" to integrate first
 
-Ceux qui apportent le plus à une plateforme d'agrégation, et qu'on cite moins que Maltego/SpiderFoot/theHarvester.
+The ones that add the most to an aggregation platform, and are cited less than Maltego/SpiderFoot/theHarvester.
 
-| # | Outil | Ce qu'il débloque | Accès | Statut |
+| # | Tool | What it unlocks | Access | Status |
 |---|---|---|---|---|
-| 1 | **Epieos** | Email/tél → compte Google (nom, photo, GAIA ID), Skype, 140+ services. Ne notifie pas la cible. | web + Maltego | 🟡 ~30 €/mois |
-| 2 | **Blackbird** | Username enum rapide et **activement maintenu** (2026), là où Sherlock ralentit. | CLI | 🟢 |
-| 3 | **WhatsMyName** | La **liste JSON** qui alimente la moitié des outils de pseudo — à ingérer comme dataset interne. | data/JSON + web | 🟢 |
-| 4 | **Netlas** | Alternative Shodan/Censys avec un **vrai tier gratuit exploitable** (50 req/j), API propre. | web + API | 🟡 dès 49 $/mois |
-| 5 | **IntelligenceX** | Recherche dans leaks, pastes, darkweb, données historiques indexées. | web + API | 🟡 ⚖️ |
-| 6 | **FaceCheck.id** | Reverse face search couvrant réseaux/darkweb (là où Google/TinEye échouent sur les visages). | web | 🟡 ⚖️ |
-| 7 | **GreyNoise** | Filtre le « bruit » : sait quelles IP scannent Internet → nettoie les faux signaux infra. | web + API | 🟡 (Community 🟢) |
-| 8 | **holehe** | Email → existence de compte sur 120+ sites via « mot de passe oublié », sans alerter. | CLI | 🟢 ⚠️ |
-| 9 | **IPQualityScore** | Scoring fraude email + téléphone + IP (VoIP/jetable, risque), 1000 crédits/mois gratuits. | API | 🟡 |
-| 10 | **sn0int** | Framework OSINT **semi-automatique** avec registry de modules — proche de l'esprit Tusna. | CLI/pkg | 🟢 |
-| 11 | **Castrickclues** | Reverse email/username/tél se revendiquant **sans bases de brèches** (propre RGPD). | web | 🟡 |
-| 12 | **Lenso.ai** | Reverse image par IA (visages, lieux, duplicatas) — plus « intelligent » que TinEye. | web | 🟡 |
-| 13 | **GHunt** | OSINT profond sur compte Google via email/GAIA ID. Puissant mais fragile. | CLI | 🟢 ⚠️ |
-| 14 | **socialscan** | Vérifie en un appel la dispo/l'existence email **et** username (async, fiable). | CLI/lib | 🟢 |
-| 15 | **cipher387 collections** | Méta-annuaire de 1000+ outils + `API-s-for-OSINT` : pour **découvrir et remplacer** les outils morts. | web/GitHub | 🟢 |
-| 16 | **SEON** | Email/tél → empreinte sur 50+ réseaux + scoring de fraude. Rarement cité en OSINT, très puissant pour l'agrégation. | API | 🟡 |
-| 17 | **Hudson Rock (Cavalier)** | Dit si une identité apparaît dans un log d'**infostealer** (machines infectées). Gratuit et orienté défense. | web + API | 🟡 ⚖️ |
+| 1 | **Epieos** | Email/phone → Google account (name, photo, GAIA ID), Skype, 140+ services. Doesn't notify the target. | web + Maltego | 🟡 ~€30/mo |
+| 2 | **Blackbird** | Fast username enum, **actively maintained** (2026), where Sherlock slows down. | CLI | 🟢 |
+| 3 | **WhatsMyName** | The **JSON list** that powers half the username tools — ingest as an internal dataset. | data/JSON + web | 🟢 |
+| 4 | **Netlas** | Shodan/Censys alternative with a **genuinely usable free tier** (50 req/day), clean API. | web + API | 🟡 from $49/mo |
+| 5 | **IntelligenceX** | Search across leaks, pastes, darkweb, indexed historical data. | web + API | 🟡 ⚖️ |
+| 6 | **FaceCheck.id** | Reverse face search covering social/darkweb (where Google/TinEye fail on faces). | web | 🟡 ⚖️ |
+| 7 | **GreyNoise** | Filters the "noise": knows which IPs scan the Internet → cleans false infra signals. | web + API | 🟡 (Community 🟢) |
+| 8 | **holehe** | Email → account existence on 120+ sites via "forgot password", silently. | CLI | 🟢 ⚠️ |
+| 9 | **IPQualityScore** | Fraud scoring for email + phone + IP (VoIP/disposable, risk), 1000 free credits/mo. | API | 🟡 |
+| 10 | **sn0int** | **Semi-automatic** OSINT framework with a module registry — close to Tusna's spirit. | CLI/pkg | 🟢 |
+| 11 | **Castrickclues** | Reverse email/username/phone claiming **no breach databases** (GDPR-clean). | web | 🟡 |
+| 12 | **Lenso.ai** | AI reverse image (faces, places, duplicates) — more "intelligent" than TinEye. | web | 🟡 |
+| 13 | **GHunt** | Deep OSINT on a Google account via email/GAIA ID. Powerful but fragile. | CLI | 🟢 ⚠️ |
+| 14 | **socialscan** | Checks in one call the availability/existence of an email **and** username (async, reliable). | CLI/lib | 🟢 |
+| 15 | **cipher387 collections** | Meta-directory of 1000+ tools + `API-s-for-OSINT`: to **discover and replace** dead tools. | web/GitHub | 🟢 |
+| 16 | **SEON** | Email/phone → footprint across 50+ networks + fraud scoring. Rarely cited in OSINT, very powerful for aggregation. | API | 🟡 |
+| 17 | **Hudson Rock (Cavalier)** | Tells you if an identity appears in an **infostealer** log (infected machines). Free and defense-oriented. | web + API | 🟡 ⚖️ |
 
 ---
 
-## 1. Username / pseudonyme — énumération de présence
+## 1. Username / handle — presence enumeration
 
-Le cœur du use-case « où est cette personne sur le net ».
+The core of the "where is this person on the net" use-case.
 
-- **Sherlock** — 🟢 le classique (username → ~400 sites). Toujours utile mais **maintenance qui ralentit** et modules qui cassent ; à ne pas utiliser seul.
-- **Maigret** (soxoj) — 🟢 fork spirituel plus riche : ~2500 sites, **extrait des données de profil** (bio, avatar, dates) et non juste la présence. Meilleur choix par défaut pour l'ingestion.
-- **Blackbird** — 🟢 **activement maintenu (2026)**, rapide, sortie propre (JSON/PDF), email + username. Sous-coté.
-- **WhatsMyName** (WebBreacher) — 🟢 avant tout une **liste JSON communautaire** de sites + règles de détection ; c'est la *donnée* qui alimente Maigret/Recon-ng/etc. → à **ingérer comme dataset** interne, pas juste comme outil.
-- **socialscan** — 🟢 ⚠️ lib Python async : dit si un email/username est **pris ou libre** (distinction inférence forte). Rapide, mais **listes vieillissantes** (maintenance en sommeil).
-- **Marple** (soxoj) — 🟢 approche complémentaire : interroge les **moteurs de recherche** (Google/Bing/DDG) plutôt que de tester les URLs. Rattrape ce que Sherlock/Maigret ratent.
-- **Nexfil** — 🟢 ⚠️ ~350 sites, rapide, peu de faux positifs ; maintenance intermittente.
-- **Snoop Project** — 🟢 base de sites très large (CEI incluse) ; actif mais doc en russe, packaging lourd.
-- **Toutatis** (megadose) — 🟢 ⚠️ extrait email/tél obfusqués d'un profil **Instagram** ; marche par intermittence selon les défenses d'IG. **Osintgram** ✝️ est cassé/mort en 2026.
+- **Sherlock** — 🟢 the classic (username → ~400 sites). Still useful but **maintenance slowing** and breaking modules; don't use it alone.
+- **Maigret** (soxoj) — 🟢 richer spiritual fork: ~2500 sites, **extracts profile data** (bio, avatar, dates), not just presence. Best default for ingestion.
+- **Blackbird** — 🟢 **actively maintained (2026)**, fast, clean output (JSON/PDF), email + username. Underrated.
+- **WhatsMyName** (WebBreacher) — 🟢 primarily a **community JSON list** of sites + detection rules; it's the *data* that powers Maigret/Recon-ng/etc. → **ingest as an internal dataset**, not just as a tool.
+- **socialscan** — 🟢 ⚠️ async Python lib: tells whether an email/username is **taken or free** (strong inference distinction). Fast, but **aging lists** (dormant maintenance).
+- **Marple** (soxoj) — 🟢 complementary approach: queries **search engines** (Google/Bing/DDG) rather than probing URLs. Catches what Sherlock/Maigret miss.
+- **Nexfil** — 🟢 ⚠️ ~350 sites, fast, few false positives; intermittent maintenance.
+- **Snoop Project** — 🟢 very large site base (CIS included); active but Russian docs, heavy packaging.
+- **Toutatis** (megadose) — 🟢 ⚠️ extracts obfuscated email/phone from an **Instagram** profile; works intermittently depending on IG defenses. **Osintgram** ✝️ is broken/dead in 2026.
 
-**Pour Tusna :** ingérer la base WhatsMyName + wrapper Maigret (données de profil) + Blackbird (vitesse). Chaque hit devient un « corps » candidat sur le board Orbit.
+**For Tusna:** ingest the WhatsMyName dataset + wrap Maigret (profile data) + Blackbird (speed). Each hit becomes a candidate "body" on the Orbit board.
 
-## 2. Email — enrichissement
+## 2. Email — enrichment
 
-- **Epieos** — 🟡 (~29,99 €/mois) — email → compte Google (nom public, photo, GAIA ID, avis Maps), Skype, présence sur 140+ services. Ne notifie pas, ne journalise pas. **Référence enquêteurs.**
-- **holehe** — 🟢 ⚠️ — 120+ sites via « forgot password », sans alerter. GPL-3.0, ~11,6k★ mais **maintenance ralentie** (modules qui cassent).
-- **GHunt** — 🟢 ⚠️ — OSINT Google profond (profil, services, Maps/Photos, Drive public) via cookies d'un compte Google jetable. **Instable en 2026** (dépend de l'API Google).
-- **EmailRep.io** (Sublime) — 🟡 — score de réputation/risque + signaux (réseaux, fuites, âge domaine). Bon pour le **scoring**, pas la désanonymisation.
-- **Castrickclues** — 🟡 (~12-100 $/mois) — reverse email/username/tél **sans bases de brèches** (positionnement propre).
-- **Hunter.io / Snov.io** — 🟡 — email finder/verifier **B2B** (domaine → emails). Utile corporate, moins sur emails perso.
-- **IPQualityScore (email)** — 🟡 — validation temps réel + risque (jetable, frauduleux), 1000 crédits/mois gratuits.
-- **HIBP (API)** — 🔴 — dans quelles fuites apparaît un email (+ stealer logs en Pro). Référence, très fiable, mais **API payante**.
-- Morts/dormants à éviter : **mosint** ✝️ (2023), **h8mail** ✝️⚖️ (2022, dumps de brèches).
+- **Epieos** — 🟡 (~€29.99/mo) — email → Google account (public name, photo, GAIA ID, Maps reviews), Skype, presence across 140+ services. Doesn't notify, doesn't log. **Investigator reference.**
+- **holehe** — 🟢 ⚠️ — 120+ sites via "forgot password", silently. GPL-3.0, ~11.6k★ but **slowed maintenance** (breaking modules).
+- **GHunt** — 🟢 ⚠️ — deep Google OSINT (profile, services, Maps/Photos, public Drive) via a throwaway Google account's cookies. **Unstable in 2026** (depends on Google's API).
+- **EmailRep.io** (Sublime) — 🟡 — reputation/risk score + signals (networks, leaks, domain age). Good for **scoring**, not de-anonymization.
+- **Castrickclues** — 🟡 (~$12–100/mo) — reverse email/username/phone **without breach databases** (clean positioning).
+- **Hunter.io / Snov.io** — 🟡 — **B2B** email finder/verifier (domain → emails). Useful corporate, weaker on personal emails.
+- **IPQualityScore (email)** — 🟡 — real-time validation + risk (disposable, fraudulent), 1000 free credits/mo.
+- **HIBP (API)** — 🔴 — which breaches an email appears in (+ stealer logs on Pro). Reference, very reliable, but **paid API**.
+- Dead/dormant to avoid: **mosint** ✝️ (2023), **h8mail** ✝️⚖️ (2022, breach dumps).
 
-## 3. Téléphone — enrichissement
+## 3. Phone — enrichment
 
-- **IPQualityScore (phone)** — 🟡 — validité, opérateur, type de ligne, VoIP/jetable, fraude ; 150+ pays, sans appeler.
-- **Numverify / apilayer** — 🟡 (100 req/mois gratuites) — validation + carrier lookup, 232 pays. Données statiques (pas d'identité).
-- **PhoneInfoga** — 🟢 ⚠️ — framework recon numéro (pays, opérateur, dorks) ; le dépôt se déclare **« non maintenu, peut être archivé »**. Noyau OK, périphérie cassée.
-- **Epieos (phone)** — 🟡 — numéro → WhatsApp/Telegram/Facebook et autres inscriptions. Moins riche que le volet email mais utile.
-- **Truecaller / Sync.me** — 🟡 ⚖️ — reverse phone → nom, via modèle **« give-to-get »** (upload de carnet d'adresses) → **enjeu RGPD majeur**, numéros ajoutés sans consentement. À traiter avec prudence en UE.
-- **Numlookup / Spydialer** — 🟢 ⚠️ — reverse gratuit orienté US ; Spydialer **dégradé/quasi inutilisable fin 2025**.
+- **IPQualityScore (phone)** — 🟡 — validity, carrier, line type, VoIP/disposable, fraud; 150+ countries, without calling.
+- **Numverify / apilayer** — 🟡 (100 free req/mo) — validation + carrier lookup, 232 countries. Static data (no identity).
+- **PhoneInfoga** — 🟢 ⚠️ — phone recon framework (country, carrier, dorks); the repo declares itself **"unmaintained, may be archived"**. Core OK, periphery broken.
+- **Epieos (phone)** — 🟡 — number → WhatsApp/Telegram/Facebook and other sign-ups. Less rich than the email side but useful.
+- **Truecaller / Sync.me** — 🟡 ⚖️ — reverse phone → name, via a **"give-to-get"** model (address-book upload) → **major GDPR issue**, numbers added without consent. Handle with care in the EU.
+- **Numlookup / Spydialer** — 🟢 ⚠️ — free US-oriented reverse lookup; Spydialer **degraded/near-unusable in late 2025**.
 
-## 4. Visage / avatar / reverse image
+## 4. Face / avatar / reverse image
 
-Brique différenciante pour lier des profils par la photo (le **perceptual hashing** interne + moteurs externes).
+Differentiating brick to link profiles by photo (internal **perceptual hashing** + external engines).
 
-- **pHash interne** — 🟢 — hachage perceptuel (imagehash) des avatars pour matcher les profils **localement**, sans dépendance externe. **À faire en interne** (signal fort du matching).
-- **PimEyes** — 🔴 ⚖️ — reverse face search le plus puissant, très controversé (vie privée). Payant, à encadrer légalement.
-- **FaceCheck.id** — 🟡 ⚖️ — reverse face couvrant réseaux + darkweb ; là où les moteurs généralistes échouent.
-- **Yandex Images** — 🟢 — le meilleur **gratuit** pour la recherche par visage parmi les moteurs généraux.
-- **Lenso.ai** — 🟡 — reverse image par IA (visages, lieux, duplicatas), plus « sémantique » que TinEye.
-- **TinEye** — 🟡 — excellent pour retrouver des **copies exactes** d'une image (pas les visages) ; utile pour tracer un avatar réutilisé. Non biométrique = plus propre légalement.
-- **Search4Faces** — 🟡 ⚖️ — reconnaissance faciale sur **VK / Odnoklassniki / TikTok** (bases russes). Utile sur cibles CEI ; disponibilité **instable** (géopolitique/sanctions).
-- **PDQ** (Meta, dans ThreatExchange) — 🟢 — hachage perceptuel robuste, complément d'imagehash pour matcher un même avatar malgré recadrage/compression. À intégrer en interne.
-- **ExifTool** — 🟢 — extraction de métadonnées image (GPS, appareil, logiciel) ; incontournable, à wrapper comme connecteur fichier.
-- **Google Lens** — 🟢 — contexte général, faible sur les visages (bridé volontairement).
+- **Internal pHash** — 🟢 — perceptual hashing (imagehash) of avatars to match profiles **locally**, no external dependency. **Do this in-house** (strong matching signal).
+- **PimEyes** — 🔴 ⚖️ — the most powerful reverse face search, highly controversial (privacy). Paid, legally sensitive.
+- **FaceCheck.id** — 🟡 ⚖️ — reverse face covering social + darkweb; where general engines fail.
+- **Yandex Images** — 🟢 — the best **free** face search among general engines.
+- **Lenso.ai** — 🟡 — AI reverse image (faces, places, duplicates), more "semantic" than TinEye.
+- **TinEye** — 🟡 — great for finding **exact copies** of an image (not faces); useful to trace a reused avatar. Non-biometric = cleaner legally.
+- **Search4Faces** — 🟡 ⚖️ — facial recognition on **VK / Odnoklassniki / TikTok** (Russian bases). Useful on CIS targets; **unstable** availability (geopolitics/sanctions).
+- **PDQ** (Meta, in ThreatExchange) — 🟢 — robust perceptual hash, complements imagehash to match the same avatar despite crop/compression. Integrate in-house.
+- **ExifTool** — 🟢 — image metadata extraction (GPS, device, software); essential, wrap as a file connector.
+- **Google Lens** — 🟢 — general context, weak on faces (deliberately limited).
 
-> ⚖️ **Réserve biométrique majeure** : la recherche faciale relève de l'art. 9 RGPD et du BIPA (Illinois) ; jurisprudence Clearview AI (banni/condamné en UE, UK, Canada, Australie). PimEyes/FaceCheck imposent des CGU « recherche sur soi-même » souvent ignorées mais juridiquement importantes. N'exposer qu'avec base légale + journalisation. Le **pHash interne d'avatars** limite l'exposition juridique car non-biométrique (compare des images, pas des visages).
+> ⚖️ **Major biometric caveat**: facial search falls under GDPR Art. 9 and BIPA (Illinois); Clearview AI case law (banned/fined in the EU, UK, Canada, Australia). PimEyes/FaceCheck impose "search-on-yourself" ToS often ignored but legally important. Only expose with a legal basis + logging. **Internal avatar pHash** limits legal exposure since it's non-biometric (compares images, not faces).
 
-## 5. Infrastructure / surface d'attaque (domaine, IP, certs)
+## 5. Infrastructure / attack surface (domain, IP, certs)
 
-*(Rapport détaillé de l'agent infra.)*
-
-- **Shodan** — 🟡 — device search de référence. **Membership à vie 49 $** (souvent bradé ~5 $ Black Friday) ; API Freelancer 69 $/mois → Corporate 1099 $/mois. Web + API + CLI.
-- **Censys** — 🟡 — données de qualité recherche, excellente couverture certs. **Refonte 2026** : Legacy Search dépréciée, modèle en **crédits** ; Free = **100 crédits/mois** ; Starter dès 100 $/500 crédits. Tier gratuit devenu maigre.
-- **Netlas** — 🟡 — alternative montante, **Community gratuit à vie 50 req/j**, API propre, dès 49 $/mois. Bon rapport qualité/prix.
-- **GreyNoise** — 🟡 — identifie **qui scanne** Internet (benign/malicious/RIOT) → réduit le bruit d'alerte. Community API 🟢, Enterprise sur devis.
-- **ZoomEye** — 🟡 ⚖️ — équivalent chinois de Shodan, bonne couverture Asie. Membership à vie 149 $. **Éditeur chinois (Knownsec)** → réserve de juridiction/confidentialité des requêtes.
-- **FOFA** — 🟡 ⚖️ — cyberspace mapping chinois, syntaxe puissante. Système de crédits. **Éditeur chinois** → mêmes réserves ; interface/paiement partiellement en chinois.
-- **BinaryEdge** — ✝️ — **fermé le 31 mars 2025** (absorbé par Coalition). Ne plus l'intégrer.
-- Compléments gratuits : **crt.sh** (certs/sous-domaines) 🟢, **DNSDumpster** 🟢, **MaxMind GeoLite** (géoloc IP offline) 🟢, **Amass/Subfinder/dnsx** (CLI) 🟢.
+- **Shodan** — 🟡 — reference device search. **Lifetime membership $49** (often ~$5 on Black Friday); API Freelancer $69/mo → Corporate $1099/mo. Web + API + CLI.
+- **Censys** — 🟡 — research-grade data, excellent cert coverage. **2026 overhaul**: Legacy Search deprecated, **credit** model; Free = **100 credits/mo**; Starter from $100/500 credits. Free tier now thin.
+- **Netlas** — 🟡 — rising alternative, **free lifetime Community 50 req/day**, clean API, from $49/mo. Good value.
+- **GreyNoise** — 🟡 — identifies **who is scanning** the Internet (benign/malicious/RIOT) → reduces alert noise. Community API 🟢, Enterprise on quote.
+- **ZoomEye** — 🟡 ⚖️ — Chinese Shodan equivalent, good Asia coverage. Lifetime membership $149. **Chinese vendor (Knownsec)** → jurisdiction/query-confidentiality caveat.
+- **FOFA** — 🟡 ⚖️ — Chinese cyberspace mapping, powerful syntax. Credit system. **Chinese vendor** → same caveats; interface/payment partly in Chinese.
+- **BinaryEdge** — ✝️ — **shut down March 31, 2025** (absorbed by Coalition). Stop integrating it.
+- Free complements: **crt.sh** (certs/subdomains) 🟢, **DNSDumpster** 🟢, **MaxMind GeoLite** (offline IP geo) 🟢, **Amass/Subfinder/dnsx** (CLI) 🟢.
 
 ## 6. Threat intel / breach / leaks ⚖️
 
-Zone **sensible** : la légalité dépend de la juridiction et de la source des données. À encadrer strictement (base légale, pas de rediffusion de credentials).
+**Sensitive** area: legality depends on jurisdiction and the data's source. Strictly bound it (legal basis, no credential redistribution).
 
-- **Hudson Rock — Cavalier** — 🟡 ⚖️ — **intelligence infostealer** (machines/credentials compromis par des malwares voleurs). **Outils gratuits + API**, nettement **orienté défense** (≠ revente grise). Très sous-coté ; excellent pour savoir si une identité est apparue dans un log d'infostealer.
-- **IntelligenceX (intelx.io)** — 🟡 — recherche dans leaks, pastes, darkweb, Whois historique, données indexées. Freemium + API. Très utile, à encadrer.
-- **Dehashed** — 🔴 ⚖️ — moteur de recherche de brèches (email/username/nom/tél → credentials). Puissant mais **zone grise** ; usage défensif uniquement.
-- **LeakCheck / Snusbase** — 🔴 ⚖️ — recherche de comptes dans des fuites. Mêmes réserves.
-- **HIBP** — 🔴 — le choix **propre** pour les brèches (ne rediffuse pas les mots de passe). À privilégier en UE.
-- **MISP / OpenCTI** — 🟢 — plateformes de threat intel (connecteurs d'export/enrichissement d'IoC), pertinentes en V2 pour l'écosystème pro.
+- **Hudson Rock — Cavalier** — 🟡 ⚖️ — **infostealer intelligence** (machines/credentials compromised by stealer malware). **Free tools + API**, clearly **defense-oriented** (≠ grey resale). Very underrated; great to know if an identity appeared in an infostealer log.
+- **IntelligenceX (intelx.io)** — 🟡 — search across leaks, pastes, darkweb, historical Whois, indexed data. Freemium + API. Very useful, must be bounded.
+- **Dehashed** — 🔴 ⚖️ — breach search engine (email/username/name/phone → credentials). Powerful but **grey zone**; defensive use only.
+- **LeakCheck / Snusbase** — 🔴 ⚖️ — search accounts in leaks. Same caveats.
+- **HIBP** — 🔴 — the **clean** choice for breaches (doesn't redistribute passwords). Prefer in the EU.
+- **MISP / OpenCTI** — 🟢 — threat-intel platforms (IoC export/enrichment connectors), relevant in V2 for the pro ecosystem.
 
-## 6bis. APIs people / identity commerciales ⚖️
+## 6b. Commercial people / identity APIs ⚖️
 
-Payantes pour la plupart, mais elles apportent une couverture qu'aucun outil OSS n'égale. Distinguer nettement les APIs **KYC/fraude** (usage B2B légitime) des people-search grand public (usage OSINT à risque). Aux US : **FCRA** interdit l'usage emploi/crédit/logement. En UE : la plupart sont **difficilement compatibles RGPD** hors base légale solide.
+Mostly paid, but they provide coverage no OSS tool matches. Clearly separate **KYC/fraud** APIs (legitimate B2B use) from consumer people-search (risky OSINT use). In the US: **FCRA** bans employment/credit/housing use. In the EU: most are **hard to reconcile with GDPR** without a solid legal basis.
 
-- **SEON** — 🟡 — email/téléphone → **empreinte sur 50+ réseaux sociaux** + enrichissement + scoring de fraude. API propre, essai/freemium. **Très sous-coté pour l'agrégation d'identité.**
-- **People Data Labs (PDL)** — 🟡 — enrichissement personne/entreprise (profils pro agrégés), API propre avec **free tier réel** (crédits mensuels). Conformité RGPD à surveiller selon l'usage.
-- **Epieos / OSINT Industries** — 🟡/🔴 — agrégateurs « email/tél → comptes » orientés enquêteurs (OSINT Industries revendique 3000+ comptes). Concurrents produits directs à benchmarker.
-- **Trestle** (ex-Ekata / Whitepages Pro) — 🔴 — API identité/téléphone (reverse phone, caller-ID, scoring), orientée KYC/fraude.
-- **Endato / Enformion** — 🔴 ⚖️ — people-search **US** par API (adresses, proches, tél), **FCRA-restricted**.
-- **Pipl** — 🔴 — l'ex-référence du reverse email/tél, désormais **B2B fraude/KYC uniquement** (fermé aux enquêteurs indépendants depuis ~2019). **FullContact** a pivoté vers l'identity resolution marketing.
-- **Social Links (SL Professional)** — 🔴 — extension commerciale type Maltego (500+ sources : réseaux, blockchain, darkweb). Entreprise.
-- **Predicta Search** — 🔴 — moteur people-search pour enquêteurs (email/tél/nom → comptes, fuites, images).
-- **RocketReach / Lusha / ZoomInfo / Clearbit** — 🟡/🔴 — enrichissement **contact B2B** (email/tél pro depuis nom+société).
-- Grand public US (web, API rare, scraping contre CGU, FCRA) : **TruePeopleSearch / FastPeopleSearch** 🟢, **Spokeo / BeenVerified / Intelius** 🔴.
+- **SEON** — 🟡 — email/phone → **footprint across 50+ social networks** + enrichment + fraud scoring. Clean API, trial/freemium. **Very underrated for identity aggregation.**
+- **People Data Labs (PDL)** — 🟡 — person/company enrichment (aggregated professional profiles), clean API with a **real free tier** (monthly credits). GDPR compliance to watch depending on use.
+- **Epieos / OSINT Industries** — 🟡/🔴 — "email/phone → accounts" aggregators for investigators (OSINT Industries claims 3000+ accounts). Direct product competitors to benchmark.
+- **Trestle** (ex-Ekata / Whitepages Pro) — 🔴 — identity/phone API (reverse phone, caller-ID, scoring), KYC/fraud-oriented.
+- **Endato / Enformion** — 🔴 ⚖️ — **US** people-search via API (addresses, relatives, phone), **FCRA-restricted**.
+- **Pipl** — 🔴 — the former reverse email/phone reference, now **B2B fraud/KYC only** (closed to independent investigators since ~2019). **FullContact** pivoted to marketing identity resolution.
+- **Social Links (SL Professional)** — 🔴 — Maltego-style commercial extension (500+ sources: social, blockchain, darkweb). Enterprise.
+- **Predicta Search** — 🔴 — people-search engine for investigators (email/phone/name → accounts, leaks, images).
+- **RocketReach / Lusha / ZoomInfo / Clearbit** — 🟡/🔴 — **B2B contact** enrichment (work email/phone from name+company).
+- Consumer US (web, rare API, scraping against ToS, FCRA): **TruePeopleSearch / FastPeopleSearch** 🟢, **Spokeo / BeenVerified / Intelius** 🔴.
 
-## 7. Frameworks d'agrégation self-host (concurrents & inspirations)
+## 7. Self-host aggregation frameworks (competitors & inspirations)
 
-- **IntelOwl** — 🟢 — **le modèle de référence** pour Tusna : Django + Celery + Postgres, plugins analyzers/connectors/pivots/playbooks. À étudier de près (voire étendre).
-- **sn0int** — 🟢 — framework OSINT **semi-automatique** avec registry de modules et graphe d'entités. Esprit très proche de Tusna.
-- **Recon-ng** — 🟢 — framework modulaire (marketplace de modules) façon Metasploit du recon. Bon pour les connecteurs domaine/personne.
-- **SpiderFoot** — 🟢 (HX 🔴) — automatise 100+ sources depuis une graine. Puissant, mais orienté « scan » plus que « corrélation d'identité fine ».
-- **Maltego CE** — 🟡 ⚖️ — référence du link-analysis visuel, mais **CE très bridée** et modèle commercial ; Tusna vise justement une alternative web moderne.
-- **OSINT Industries** — 🔴 — **agrégateur commercial** email/tél → présence multi-services très large et propre. Concurrent direct côté « corrélation » ; à observer comme benchmark produit.
-- **Lampyre / Predicta Search** — 🔴 — plateformes commerciales d'investigation ; benchmarks UX.
-- Morts : **Datasploit** ✝️, **Skiptracer** ⚠️.
+- **IntelOwl** — 🟢 — **the reference model** for Tusna: Django + Celery + Postgres, analyzers/connectors/pivots/playbooks plugins. Study closely (or extend).
+- **sn0int** — 🟢 — **semi-automatic** OSINT framework with a module registry and entity graph. Very close to Tusna's spirit.
+- **Recon-ng** — 🟢 — modular framework (module marketplace) à la Metasploit of recon. Good for domain/person connectors.
+- **SpiderFoot** — 🟢 (HX 🔴) — automates 100+ sources from a seed. Powerful, but more "scan" than "fine identity correlation".
+- **Maltego CE** — 🟡 ⚖️ — the visual link-analysis reference, but **CE heavily limited** and commercial model; Tusna aims to be a modern web alternative.
+- **OSINT Industries** — 🔴 — **commercial aggregator** email/phone → very broad, clean multi-service presence. Direct "correlation" competitor; watch as a product benchmark.
+- **Lampyre / Predicta Search** — 🔴 — commercial investigation platforms; UX benchmarks.
+- Dead: **Datasploit** ✝️, **Skiptracer** ⚠️.
 
-## 8. Méta-annuaires (pour rester à jour et remplacer les outils morts)
+## 8. Meta-directories (to stay current and replace dead tools)
 
-- **cipher387/osint_stuff_tool_collection** 🟢 — 1000+ outils, sections username/email/phone/face/social ; + **cipher387/API-s-for-OSINT** (APIs). Le meilleur pour **découvrir et remplacer** les outils abandonnés.
-- **jivoi/awesome-osint** 🟢 — la liste communautaire de référence.
-- **OSINT Framework** 🟢 — la carte arborescente par type d'enquête.
-- **Bellingcat Toolkit** / **IntelTechniques** 🟢 — sélections d'enquêteurs pros, souvent en avance sur les listes génériques.
+- **cipher387/osint_stuff_tool_collection** 🟢 — 1000+ tools, username/email/phone/face/social sections; + **cipher387/API-s-for-OSINT** (APIs). Best for **discovering and replacing** abandoned tools.
+- **jivoi/awesome-osint** 🟢 — the community reference list.
+- **OSINT Framework** 🟢 — the tree map by investigation type.
+- **Bellingcat Toolkit** / **IntelTechniques** 🟢 — pro-investigator selections, often ahead of generic lists.
 
 ---
 
-## Implications pour Tusna
+## Implications for Tusna
 
-1. **Connecteurs auto prioritaires** (fiables, API/CLI) : Maigret + Blackbird (username), crt.sh + Netlas (infra), Epieos + holehe + EmailRep (email), IPQualityScore + Numverify (tél), pHash interne (avatar). → alimentent le board Orbit automatiquement.
-2. **APIs payantes derrière feature flags + quotas** : Shodan, HIBP, IntelligenceX, PimEyes/FaceCheck. Coût variable isolé et monitoré, étiqueté dans l'UI.
-3. **Catalogue de pivots manuels** (import cipher387) : ~1000 outils web « à cliquer », filtrables, pour combler ce que l'auto ne couvre pas — l'analyste recolle le résultat sur le board.
-4. **Signaler dans l'UI** : statut (freemium/payant/instable/mort), fraîcheur, et **réserves légales** (Truecaller/Sync.me RGPD ; Dehashed/Snusbase brèches ; ZoomEye/FOFA juridiction chinoise).
-5. **Surveiller la maintenance** : holehe, GHunt, PhoneInfoga déclinent — prévoir des remplaçants (via cipher387) et des tests de contrat par connecteur.
+1. **Priority auto connectors** (reliable, API/CLI): Maigret + Blackbird (username), crt.sh + Netlas (infra), Epieos + holehe + EmailRep (email), IPQualityScore + Numverify (phone), internal pHash (avatar). → feed the Orbit board automatically.
+2. **Paid APIs behind feature flags + quotas**: Shodan, HIBP, IntelligenceX, PimEyes/FaceCheck. Variable cost isolated and monitored, labeled in the UI.
+3. **Manual-pivot catalogue** (cipher387 import): ~1000 "click-through" web tools, filterable, to fill what automation doesn't cover — the analyst pastes the result back onto the board.
+4. **Flag in the UI**: status (freemium/paid/unstable/dead), freshness, and **legal caveats** (Truecaller/Sync.me GDPR; Dehashed/Snusbase breaches; ZoomEye/FOFA Chinese jurisdiction).
+5. **Watch maintenance**: holehe, GHunt, PhoneInfoga are declining — plan replacements (via cipher387) and per-connector contract tests.
 
-## Sources principales
-- cipher387 : https://github.com/cipher387/osint_stuff_tool_collection · https://github.com/cipher387/API-s-for-OSINT
-- Username : https://github.com/p1ngul1n0/blackbird · https://github.com/soxoj/maigret · https://github.com/WebBreacher/WhatsMyName · https://github.com/iojw/socialscan
-- Email/tél : https://epieos.com/pricing · https://github.com/megadose/holehe · https://github.com/mxrch/GHunt · https://emailrep.io/ · https://www.ipqualityscore.com/plans · https://numverify.com/pricing · https://haveibeenpwned.com/API/Key · https://castrickclues.com/
-- Infra : https://account.shodan.io/billing · https://censys.com/blog/legacy-search-deprecation/ · https://netlas.io/pricing/ · https://www.greynoise.io/plans · https://www.zoomeye.ai/pricing · https://en.fofa.info/vip · https://www.binaryedge.io/pricing.html
-- Visage : https://facecheck.id/ · https://yandex.com/images/ · https://lenso.ai/ · https://tineye.com/
-- Threat intel : https://intelx.io/ · https://haveibeenpwned.com/
-- Frameworks : https://github.com/intelowlproject/IntelOwl · https://github.com/kpcyrd/sn0int · https://github.com/lanmaster53/recon-ng · https://osint.industries/
+## Main sources
+- cipher387: https://github.com/cipher387/osint_stuff_tool_collection · https://github.com/cipher387/API-s-for-OSINT
+- Username: https://github.com/p1ngul1n0/blackbird · https://github.com/soxoj/maigret · https://github.com/WebBreacher/WhatsMyName · https://github.com/iojw/socialscan
+- Email/phone: https://epieos.com/pricing · https://github.com/megadose/holehe · https://github.com/mxrch/GHunt · https://emailrep.io/ · https://www.ipqualityscore.com/plans · https://numverify.com/pricing · https://haveibeenpwned.com/API/Key · https://castrickclues.com/
+- Infra: https://account.shodan.io/billing · https://censys.com/blog/legacy-search-deprecation/ · https://netlas.io/pricing/ · https://www.greynoise.io/plans · https://www.zoomeye.ai/pricing · https://en.fofa.info/vip · https://www.binaryedge.io/pricing.html
+- Face: https://facecheck.id/ · https://yandex.com/images/ · https://lenso.ai/ · https://tineye.com/
+- Threat intel: https://intelx.io/ · https://haveibeenpwned.com/
+- Frameworks: https://github.com/intelowlproject/IntelOwl · https://github.com/kpcyrd/sn0int · https://github.com/lanmaster53/recon-ng · https://osint.industries/

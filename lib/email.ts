@@ -82,12 +82,13 @@ export interface EmailScan {
   mxValid: boolean;
 }
 
-export async function scanEmail(email: string, depth = 100): Promise<EmailScan> {
+export async function scanEmail(email: string, depth = 100, enabled?: Set<string>): Promise<EmailScan> {
   const handle = deriveHandle(email);
+  const wmnOn = !enabled || enabled.has("whatsmyname");
   const [grav, derivedApi, wmn, mx] = await Promise.all([
     gravatarByEmail(email),
-    handle ? scanUsername(handle) : Promise.resolve([] as RawProfile[]),
-    handle ? scanWmn(handle, depth) : Promise.resolve({ hits: [] as RawProfile[], checked: 0, total: 0 }),
+    handle ? scanUsername(handle, enabled) : Promise.resolve([] as RawProfile[]),
+    handle && wmnOn ? scanWmn(handle, depth) : Promise.resolve({ hits: [] as RawProfile[], checked: 0, total: 0 }),
     mxValid(email),
   ]);
 

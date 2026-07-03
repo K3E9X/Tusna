@@ -242,14 +242,21 @@ async function wikipedia(u: string): Promise<RawProfile | null> {
   };
 }
 
-export const CONNECTORS: Array<(u: string) => Promise<RawProfile | null>> = [
-  github, gitlab, reddit, hackernews, keybase, gravatar, bluesky,
-  mastodon, chesscom, codeforces, npm, dockerhub, wikipedia,
+export const CONNECTOR_DEFS: Array<{ id: string; fn: (u: string) => Promise<RawProfile | null> }> = [
+  { id: "github", fn: github }, { id: "gitlab", fn: gitlab }, { id: "reddit", fn: reddit },
+  { id: "hn", fn: hackernews }, { id: "keybase", fn: keybase }, { id: "gravatar", fn: gravatar },
+  { id: "bluesky", fn: bluesky }, { id: "mastodon", fn: mastodon }, { id: "chesscom", fn: chesscom },
+  { id: "codeforces", fn: codeforces }, { id: "npm", fn: npm }, { id: "dockerhub", fn: dockerhub },
+  { id: "wikipedia", fn: wikipedia },
 ];
 
-/** Run all connectors for a username; never throws — failed ones drop to null. */
-export async function scanUsername(username: string): Promise<RawProfile[]> {
-  const settled = await Promise.allSettled(CONNECTORS.map((c) => c(username)));
+export const CONNECTOR_IDS = CONNECTOR_DEFS.map((d) => d.id);
+
+/** Run the enabled connectors for a username; never throws — failed ones drop to null.
+ *  `enabled` = allowlist of connector ids; omit to run all. */
+export async function scanUsername(username: string, enabled?: Set<string>): Promise<RawProfile[]> {
+  const defs = enabled ? CONNECTOR_DEFS.filter((d) => enabled.has(d.id)) : CONNECTOR_DEFS;
+  const settled = await Promise.allSettled(defs.map((d) => d.fn(username)));
   return settled
     .map((s) => (s.status === "fulfilled" ? s.value : null))
     .filter((x): x is RawProfile => x != null);

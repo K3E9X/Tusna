@@ -154,6 +154,11 @@ export async function GET(req: NextRequest) {
   if (!isEmail && /[^\w.\-@]/.test(q)) {
     return NextResponse.json({ error: "invalid username" }, { status: 400 });
   }
+  // enabled apps allowlist (omit → run everything)
+  const cParam = req.nextUrl.searchParams.get("connectors");
+  const enabled = cParam != null ? new Set(cParam.split(",").filter(Boolean)) : null;
+  const wmnOn = !enabled || enabled.has("whatsmyname");
+  const phashOn = !enabled || enabled.has("phash");
   try {
     let apiProfiles: RawProfile[];
     let wmnHits: RawProfile[];
@@ -162,14 +167,17 @@ export async function GET(req: NextRequest) {
     let email: { handle: string; mxValid: boolean } | undefined;
 
     if (isEmail) {
-      const r = await scanEmail(q, depth);
+      const r = await scanEmail(q, depth, enabled ?? undefined);
       apiProfiles = r.profiles;
       wmnHits = r.wmnHits;
       checked = r.wmnChecked; totalSites = r.wmnTotal;
       matchTarget = r.handle || q;
       email = { handle: r.handle, mxValid: r.mxValid };
     } else {
-      const [api, wmn] = await Promise.all([scanUsername(q), scanWmn(q, depth)]);
+      const [api, wmn] = await Promise.all([
+        scanUsername(q, enabled ?? undefined),
+        wmnOn ? scanWmn(q, depth) : Promise.resolve({ hits: [] as RawProfile[], checked: 0, total: 0 }),
+      ]);
       apiProfiles = api; wmnHits = wmn.hits;
       checked = wmn.checked; totalSites = wmn.total;
     }
@@ -212,7 +220,7 @@ export async function GET(req: NextRequest) {
     }
 
     // link accounts by avatar (perceptual hash) before scoring
-    await enrichAvatars(merged);
+    if (phashOn) await enrichAvatars(merged);
 
     const signals = correlate(matchTarget, merged);
     for (const s of signals) {

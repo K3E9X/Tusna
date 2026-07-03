@@ -42,8 +42,16 @@ function correlate(seed: string, profiles: RawProfile[]): Signal[] {
     const other = profiles.find((q) => q.id !== p.id && q.displayName && p.displayName && norm(q.displayName) === norm(p.displayName));
     let crossBoost = 0;
     if (other) {
-      crossBoost = 14;
+      crossBoost += 14;
       evidence.push({ name: "Nom concordant", detail: `Nom public identique à ${other.platform}.`, source: "corrélation inter-sources", weight: 82 });
+    }
+
+    // strong cross-signal: self-declared / verified linked accounts (Keybase, Gravatar)
+    if (p.links?.length) {
+      crossBoost += 18;
+      for (const l of p.links.slice(0, 4)) {
+        evidence.push({ name: "Compte lié déclaré", detail: l.label + (l.url ? ` → ${l.url}` : ""), source: `${p.source} · lien déclaré`, weight: 85 });
+      }
     }
 
     let confidence = (exact ? 62 : 46) + crossBoost;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { scanUsername, type RawProfile } from "@/lib/connectors";
+import { scanWmn } from "@/lib/wmn";
 import type { Signal, Evidence, Status } from "@/lib/signals";
 
 export const runtime = "nodejs";
@@ -26,12 +27,21 @@ function correlate(seed: string, profiles: RawProfile[]): Signal[] {
 
     // exact / near username match against the seed
     const exact = handleN === seedN;
-    evidence.push({
-      name: exact ? "Username exact" : "Username proche",
-      detail: `${p.handle} ${exact ? "≡" : "≈"} graine « ${seed} », compte public existant.`,
-      source: p.source,
-      weight: exact ? 74 : 58,
-    });
+    if (p.unverified) {
+      evidence.push({
+        name: "Présence détectée",
+        detail: `${p.handle} trouvé sur ${p.platform} par motif d'URL (WhatsMyName) — existence non vérifiée par une API.`,
+        source: p.source,
+        weight: 45,
+      });
+    } else {
+      evidence.push({
+        name: exact ? "Username exact" : "Username proche",
+        detail: `${p.handle} ${exact ? "≡" : "≈"} graine « ${seed} », compte public existant.`,
+        source: p.source,
+        weight: exact ? 74 : 58,
+      });
+    }
 
     if (p.displayName) evidence.push({ name: "Nom public", detail: p.displayName, source: p.source, weight: 55 });
     if (p.bio) evidence.push({ name: "Bio publique", detail: p.bio.slice(0, 140), source: p.source, weight: 44 });
@@ -54,11 +64,11 @@ function correlate(seed: string, profiles: RawProfile[]): Signal[] {
       }
     }
 
-    let confidence = (exact ? 62 : 46) + crossBoost;
+    let confidence = (p.unverified ? (exact ? 42 : 32) : (exact ? 62 : 46)) + crossBoost;
     if (p.displayName) confidence += 6;
     if (p.bio) confidence += 5;
     if (p.avatar) confidence += 5;
-    confidence = clamp(Math.round(confidence), 30, 94);
+    confidence = clamp(Math.round(confidence), 22, 94);
 
     const status: Status = confidence >= 78 ? "review" : "candidate";
 
@@ -76,15 +86,30 @@ function correlate(seed: string, profiles: RawProfile[]): Signal[] {
 
 export async function GET(req: NextRequest) {
   const username = (req.nextUrl.searchParams.get("username") || "").trim();
+  const depth = clamp(parseInt(req.nextUrl.searchParams.get("depth") || "100", 10) || 100, 1, 250);
   if (!username || username.length > 64 || /[^\w.\-@]/.test(username)) {
     return NextResponse.json({ error: "username invalide" }, { status: 400 });
   }
   try {
-    const profiles = await scanUsername(username);
-    const signals = correlate(username, profiles);
-    // strongest first
+    // official APIs (rich, verified) + WhatsMyName ruleset (broad, unverified) in parallel
+    const [apiProfiles, wmn] = await Promise.all([
+      scanUsername(username),
+      scanWmn(username, depth),
+    ]);
+    // dedupe: prefer the richer API profile when a platform appears in both
+    const seen = new Set(apiProfiles.map((p) => norm(p.platform)));
+    const merged = [...apiProfiles, ...wmn.hits.filter((w) => !seen.has(norm(w.platform)))];
+
+    const signals = correlate(username, merged);
     signals.sort((a, b) => b.confidence - a.confidence);
-    return NextResponse.json({ seed: username, count: signals.length, signals });
+    return NextResponse.json({
+      seed: username,
+      count: signals.length,
+      signals,
+      sources: { api: apiProfiles.length, web: wmn.hits.length },
+      // coverage transparency — never silently truncate
+      coverage: { checked: wmn.checked, available: wmn.total, capped: wmn.checked < wmn.total },
+    });
   } catch (e) {
     return NextResponse.json({ error: "scan échoué", detail: String(e) }, { status: 500 });
   }

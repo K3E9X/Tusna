@@ -50,7 +50,9 @@ docs/           # architecture.md, osint-tools-research.md, llm-correlation.md
 
 Le bouton **SCANNER** interroge en parallèle **13 APIs publiques officielles** (aucune clé, aucun scraping, CGU respectées) : GitHub, GitLab, Reddit, Hacker News, **Keybase**, **Gravatar**, Bluesky, Mastodon, Chess.com, Codeforces, npm, Docker Hub, Wikipedia. Keybase et Gravatar remontent en plus les **comptes liés déclarés** (cross-links vérifiés) — un signal fort de corrélation.
 
-Volontairement **exclus** des connecteurs auto : Instagram, X/Twitter, Facebook, LinkedIn, TikTok (API fermées / CGU restrictives) — ils relèvent des **pivots manuels** (catalogue cipher387), pas de l'automatisation. Passer à des *centaines* de sites suppose d'intégrer le dataset **WhatsMyName** / un wrapper **Maigret** — étape suivante.
+**Couche large — WhatsMyName.** En plus des 13 APIs, le scan interroge le **dataset officiel WhatsMyName** (600+ sites, chargé à l'exécution depuis le dépôt maintenu). Ces présences sont détectées par **motif d'URL** : elles sont explicitement marquées **« non vérifiées »**, scorées bas et placées en orbite froide — l'humain confirme. Cela élargit la couverture **sans fabriquer de faux positifs**. Le nombre de sites testés par scan est plafonné (`?depth=`, défaut 100, pour tenir dans la limite de temps d'une fonction serverless) et la réponse expose `coverage.capped` — **jamais de troncature silencieuse**.
+
+Volontairement **exclus** des connecteurs auto : Instagram, X/Twitter, Facebook, LinkedIn, TikTok (API fermées / CGU restrictives) — ils relèvent des **pivots manuels** (catalogue cipher387), pas de l'automatisation.
 
 ## Direction artistique
 

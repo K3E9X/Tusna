@@ -23,6 +23,8 @@ export interface RawProfile {
   createdAt?: string;
   /** self-declared / verified links to other accounts (strong cross-signal) */
   links?: ProfileLink[];
+  /** true when existence is inferred by URL pattern (WhatsMyName), not an official API */
+  unverified?: boolean;
   /** short provenance, e.g. "api.github.com · API publique" */
   source: string;
 }

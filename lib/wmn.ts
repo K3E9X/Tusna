@@ -77,7 +77,7 @@ async function checkSite(site: WmnSite, username: string, timeoutMs = 5000): Pro
       handle: username,
       url: pretty,
       unverified: true,
-      source: `${host} · WhatsMyName (motif d'URL)`,
+      source: `${host} · WhatsMyName (URL pattern)`,
     };
   } catch {
     return null;

@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Tusna — Orbit",
   description:
-    "Tusna — plateforme OSINT de corrélation d'identité. Vue Orbit : la confiance de matching comme force gravitationnelle.",
+    "Tusna — OSINT identity correlation platform. Orbit view: matching confidence as gravitational pull.",
 };
 
 export const viewport: Viewport = {
@@ -15,7 +15,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr">
+    <html lang="en">
       <body>{children}</body>
     </html>
   );

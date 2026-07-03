@@ -1,13 +1,13 @@
 # Tusna
 
-**Plateforme OSINT d'agrégation et de corrélation d'identité.**
-Tusna n'est pas un lanceur de scripts : c'est un hub qui fusionne, déduplique, relie et **score** ce que produisent des dizaines d'outils OSINT, dans une expérience rapide et traçable.
+**OSINT identity aggregation & correlation platform.**
+Tusna is not a script launcher: it's a hub that merges, deduplicates, links and **scores** what dozens of OSINT tools produce, in a fast, auditable experience.
 
-La vue signature est **Orbit** : la corrélation d'identité présentée comme un **système gravitationnel**. La graine (un pseudo, un email, une personne) est au centre ; chaque présence trouvée sur le net est un corps en orbite ; **la confiance du moteur de matching = la force d'attraction**. Preuve forte → orbite serrée (le « soi confirmé ») ; preuve faible ou contredite → dérive vers le froid. Physique à ressorts : tout glisse, rien n'est figé.
+The signature view is **Orbit**: identity correlation shown as a **gravitational system**. The seed (a username, an email, a person) sits at the center; every presence found on the net is a body in orbit; **the matching engine's confidence = the pull of gravity**. Strong evidence → tight orbit (the "confirmed self"); weak or contradicted evidence → drift into the cold. Spring physics: everything glides, nothing is frozen.
 
-> État : prototype d'interface (données simulées). Le pipeline d'ingestion, les connecteurs et le moteur de matching sont décrits dans [`docs/architecture.md`](docs/architecture.md) et arrivent par étapes.
+> Status: interface prototype with a live scan backend. Full ingestion, matching engine, and persistence are described in [`docs/architecture.md`](docs/architecture.md) and land in stages.
 
-## Démarrer en local
+## Run locally
 
 ```bash
 npm install
@@ -15,65 +15,74 @@ npm run dev
 # http://localhost:3000
 ```
 
-Build de production :
+Production build:
 
 ```bash
 npm run build && npm start
 ```
 
-## Déployer sur Vercel (gratuit)
+## Deploy on Vercel (free)
 
-L'app est une application Next.js standard, déployable sans configuration.
+Standard Next.js app, zero-config deploy.
 
-1. Pousser ce dépôt sur GitHub (déjà fait : `K3E9X/Tusna`).
-2. Aller sur [vercel.com/new](https://vercel.com/new) et se connecter avec GitHub.
-3. **Import** du dépôt `K3E9X/Tusna`.
-4. Vercel détecte Next.js automatiquement — aucun réglage à changer :
-   - Framework : **Next.js**
-   - Build command : `next build` (auto)
-   - Output : `.next` (auto)
-5. **Deploy**. L'URL de preview est prête en ~1 minute ; chaque push redéploie.
+1. Push this repo to GitHub (already done: `K3E9X/Tusna`).
+2. Go to [vercel.com/new](https://vercel.com/new) and sign in with GitHub.
+3. **Import** the `K3E9X/Tusna` repo (pick the working branch if not merged to `main`).
+4. Vercel auto-detects Next.js — nothing to change (build `next build`, output `.next`).
+5. **Deploy**. Preview URL is ready in ~1 min; every push redeploys.
 
-Aucune variable d'environnement n'est requise à ce stade (données simulées). Les clés d'API des connecteurs (Shodan, HIBP, etc.) seront ajoutées comme variables d'environnement Vercel quand le backend sera branché — jamais commitées.
+No environment variables are required yet. Connector API keys (Shodan, HIBP, etc.) will be added as Vercel env vars when those paid sources are wired — never committed.
 
 ## Structure
 
 ```
-app/            # Next.js App Router (layout, page, styles globaux)
-  api/scan/     # route serveur : scan réel + scoring sourcé
-components/     # OrbitBoard.tsx — la vue Orbit (canvas + physique à ressorts)
-lib/            # signals.ts (modèle typé) · connectors.ts (13 APIs publiques)
-docs/           # architecture.md, osint-tools-research.md, llm-correlation.md
+app/            # Next.js App Router (layout, page, global styles)
+  api/scan/     # server route: live scan + sourced scoring
+components/     # OrbitBoard.tsx — the Orbit view (canvas + spring physics)
+lib/            # signals.ts (typed model) · connectors.ts (13 public APIs)
+                # wmn.ts (WhatsMyName) · phash.ts (avatar hashing)
+                # email.ts (email→accounts) · cases.ts (local persistence)
+docs/           # architecture, osint-tools-research, llm-correlation
 ```
 
-## Connecteurs actuels (scan réel)
+## Live connectors (real scan)
 
-Le bouton **SCANNER** interroge en parallèle **13 APIs publiques officielles** (aucune clé, aucun scraping, CGU respectées) : GitHub, GitLab, Reddit, Hacker News, **Keybase**, **Gravatar**, Bluesky, Mastodon, Chess.com, Codeforces, npm, Docker Hub, Wikipedia. Keybase et Gravatar remontent en plus les **comptes liés déclarés** (cross-links vérifiés) — un signal fort de corrélation.
+The **seed** accepts a **username or an email**.
 
-**Couche large — WhatsMyName.** En plus des 13 APIs, le scan interroge le **dataset officiel WhatsMyName** (600+ sites, chargé à l'exécution depuis le dépôt maintenu). Ces présences sont détectées par **motif d'URL** : elles sont explicitement marquées **« non vérifiées »**, scorées bas et placées en orbite froide — l'humain confirme. Cela élargit la couverture **sans fabriquer de faux positifs**. Le nombre de sites testés par scan est plafonné (`?depth=`, défaut 100, pour tenir dans la limite de temps d'une fonction serverless) et la réponse expose `coverage.capped` — **jamais de troncature silencieuse**.
+**Username mode** — **SCAN** queries **13 official public APIs** in parallel (no key, no scraping, ToS-respecting): GitHub, GitLab, Reddit, Hacker News, **Keybase**, **Gravatar**, Bluesky, Mastodon, Chess.com, Codeforces, npm, Docker Hub, Wikipedia. Keybase and Gravatar also surface **declared linked accounts** (verified cross-links) — a strong correlation signal.
 
-**Liaison par la photo — pHash.** Les avatars des présences trouvées sont hachés (dHash perceptuel, local) et comparés deux à deux : deux comptes dont la photo concorde (faible distance de Hamming) sont reliés par une preuve forte « Avatar identique/proche ». C'est **déterministe et vérifiable** — donc sans hallucination — et ça relie des comptes même quand les pseudos diffèrent. Aucun service facial externe : on compare des images, pas des visages (pas d'exposition biométrique).
+**Email mode** — `email → accounts`, no key: (1) **Gravatar by hash** (MD5/SHA256) → verified profile + declared linked accounts (the anchor); (2) a **handle derived** from the local-part (gmail dot/tag normalization) re-run across every source, flagged **"derived (inference)"** and scored lower — the link to the person still needs confirming; (3) **MX validation** of the domain.
 
-Volontairement **exclus** des connecteurs auto : Instagram, X/Twitter, Facebook, LinkedIn, TikTok (API fermées / CGU restrictives) — ils relèvent des **pivots manuels** (catalogue cipher387), pas de l'automatisation.
+**Broad layer — WhatsMyName.** On top of the 13 APIs, the scan queries the **official WhatsMyName dataset** (600+ sites, loaded at runtime from the maintained repo). These presences are detected by **URL pattern**: they are explicitly flagged **"unverified"**, scored low and placed in cold orbit — the human confirms. This broadens coverage **without manufacturing false positives**. Sites checked per scan are capped (`?depth=`, default 100, to fit a serverless function's time limit) and the response exposes `coverage.capped` — **never a silent truncation**.
 
-## Direction artistique
+**Linking by photo — pHash.** Avatars of the presences found are hashed (perceptual dHash, local) and compared pairwise: two accounts whose photos match (low Hamming distance) are linked by a strong "Matching/near-match avatar" evidence. This is **deterministic and verifiable** — so no hallucination — and links accounts even when usernames differ. No external facial service: we compare images, not faces (no biometric exposure).
 
-Puriste, minimaliste, épurée. Un void, des anneaux en filet, du monospace comme face héroïque (instrument scientifique), **un seul accent** cyan désaturé. La confiance est encodée par la **distance et la luminosité**, pas par des couleurs criardes. Le vide (negative space) fait partie du design.
+**Linked-account web.** Declared/verified links (Keybase proofs, Gravatar accounts) are expanded into **connected nodes** and drawn as **inter-node edges** — the board shows who is linked to whom, not just each body to the seed.
 
-## Principe de corrélation LLM — sans hallucination
+Deliberately **excluded** from automated connectors: Instagram, X/Twitter, Facebook, LinkedIn, TikTok (closed APIs / restrictive ToS) — those belong to the **manual pivots** catalogue (cipher387), not automation.
 
-Le LLM **assiste, il ne décide pas, et il n'invente jamais**. Le score de corrélation n'agrège que des **preuves rattachées à une source vérifiable** (avatar pHash, cross-link observé, clé PGP, email de commit…). Chaque preuve porte sa provenance et son poids. Aucune assertion non sourcée n'est produite. L'humain tranche (confirmer / à vérifier / rejeter) — jamais de fusion automatique silencieuse sur une personne. Détails dans [`docs/llm-correlation.md`](docs/llm-correlation.md).
+## Persistence
 
-## Feuille de route (résumé)
+Investigations can be **saved and reloaded** (SAVE / CASES in the top bar), stored in the browser (`localStorage`) — no backend, works on Vercel immediately. Server-side / multi-device persistence would use a hosted DB (Vercel Postgres / Neon) via an env var — a later step.
 
-1. **Fait** — vue Orbit (prototype UI), archi de référence, recherche outils.
-2. Connecteurs réels (Maigret/Sherlock, crt.sh, Epieos…) alimentant le board.
-3. Moteur de matching (Splink + pHash + embeddings) + file de triage.
-4. Couche LLM de corrélation sourcée (extraction, tie-break, résumé).
-5. Auth, audit, conformité RGPD, multi-tenant.
+## Art direction
 
-Voir [`docs/architecture.md`](docs/architecture.md) et [`docs/osint-tools-research.md`](docs/osint-tools-research.md).
+Purist, minimal, spare. A void, hairline rings, monospace as the hero face (a scientific instrument), **a single accent** (desaturated cyan). Confidence is encoded by **distance and brightness**, not loud colors. Negative space is part of the design.
 
-## Cadre légal
+## LLM correlation — no hallucination
 
-Outil destiné à l'investigation OSINT **légitime** (threat intel, due diligence, protection de marque, journalisme). Traitement de données personnelles → RGPD by design (base légale, minimisation, rétention limitée, audit, droits des personnes). Respect des CGU des sources ; les sources à CGU restrictives sont exclues ou clairement étiquetées.
+The LLM **assists, it does not decide, and it never invents**. The correlation score aggregates only **evidence tied to a verifiable source** (avatar pHash, observed cross-link, PGP key, commit email…). Every evidence item carries its provenance and weight. No unsourced assertion is produced. The human decides (confirm / review / reject) — never a silent automatic merge on a person. Details in [`docs/llm-correlation.md`](docs/llm-correlation.md).
+
+## Roadmap (summary)
+
+1. **Done** — Orbit view, live username/email scan (13 APIs + WhatsMyName + pHash + linked-account web), local persistence, reference architecture, tools research.
+2. Server-side persistence (hosted DB) + shared investigations.
+3. Matching engine hardening (Splink + embeddings) + triage queue.
+4. Grounded LLM layer (extraction, tie-break, summary).
+5. Auth, audit, GDPR compliance, multi-tenant.
+
+See [`docs/architecture.md`](docs/architecture.md) and [`docs/osint-tools-research.md`](docs/osint-tools-research.md).
+
+## Legal note
+
+Intended for **legitimate** OSINT investigation (threat intel, due diligence, brand protection, journalism). Processing personal data → GDPR by design (legal basis, minimization, limited retention, audit, data-subject rights). Source ToS respected; sources with restrictive ToS are excluded or clearly labeled.

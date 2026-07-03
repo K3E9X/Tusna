@@ -60,6 +60,19 @@ body {
 .btn:hover { color: var(--ink); border-color: var(--ink-3); }
 .btn:disabled { opacity: .4; cursor: default; }
 
+.cases-wrap { position: relative; }
+.cases-pop { position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: 240px;
+  background: var(--panel); backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: 4px;
+  padding: 6px; max-height: 320px; overflow-y: auto; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+.cases-empty { font-size: 10px; letter-spacing: .1em; color: var(--ink-3); padding: 12px; text-align: center; }
+.case-row { display: flex; align-items: stretch; gap: 4px; }
+.case-open { flex: 1; text-align: left; background: transparent; border: 0; cursor: pointer; padding: 8px 9px; border-radius: 3px; font-family: var(--mono); }
+.case-open:hover { background: var(--void-2); }
+.case-name { display: block; font-size: 12px; color: var(--ink); }
+.case-meta { display: block; font-size: 9px; letter-spacing: .05em; color: var(--ink-3); margin-top: 2px; }
+.case-del { background: transparent; border: 0; color: var(--ink-4); cursor: pointer; font-family: var(--mono); font-size: 11px; padding: 0 8px; }
+.case-del:hover { color: var(--reject); }
+
 .legend { position: fixed; left: 22px; bottom: 20px; z-index: 20; font-size: 9.5px; letter-spacing: .18em; color: var(--ink-3); line-height: 2; }
 .legend .l { display: flex; align-items: center; gap: 8px; }
 .legend .tick { width: 16px; height: 1px; background: var(--ink-4); }

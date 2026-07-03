@@ -1,11 +1,11 @@
 // Mock correlation data for the Orbit view.
 // In production these objects are produced by the ingestion pipeline
-// (connectors → normalization → matching engine) — never invented by the LLM.
+// (connectors -> normalization -> matching engine) — never invented by the LLM.
 
 export type Status = "confirmed" | "review" | "candidate" | "rejected";
 
 export interface Evidence {
-  /** short name of the signal, e.g. "Avatar identique" */
+  /** short name of the signal, e.g. "Matching avatar" */
   name: string;
   /** human-readable detail */
   detail: string;
@@ -27,6 +27,8 @@ export interface Signal {
   confidence: number;
   status: Status;
   evidence: Evidence[];
+  /** ids of other signals this account is linked to (declared/verified cross-links) */
+  linkedIds?: string[];
 }
 
 export const SEED = "j0hn_doe";
@@ -34,77 +36,80 @@ export const SEED = "j0hn_doe";
 export const SIGNALS: Signal[] = [
   {
     id: "x", platform: "X / TWITTER", handle: "@j0hn_doe", disc: "X", confidence: 96, status: "confirmed",
+    linkedIds: ["gh"],
     evidence: [
-      { name: "Avatar identique", detail: "Hash perceptuel du portrait — collision quasi exacte.", source: "pHash · agrégé localement", weight: 98 },
-      { name: "Cross-link explicite", detail: "La bio pointe vers github.com/j0hndoe.", source: "observé · page publique", weight: 95 },
-      { name: "Username exact", detail: "j0hn_doe ≡ graine, aucune variation.", source: "déterministe", weight: 90 },
+      { name: "Matching avatar", detail: "Perceptual hash of the portrait — near-exact collision.", source: "pHash · computed locally", weight: 98 },
+      { name: "Explicit cross-link", detail: "Bio points to github.com/j0hndoe.", source: "observed · public page", weight: 95 },
+      { name: "Exact username", detail: "j0hn_doe = seed, no variation.", source: "deterministic", weight: 90 },
     ],
   },
   {
     id: "gh", platform: "GITHUB", handle: "j0hndoe", disc: "GH", confidence: 92, status: "confirmed",
     evidence: [
-      { name: "Email de commit", detail: "j***@proton.me réutilisé sur 3 comptes liés.", source: "observé · métadonnées git", weight: 93 },
-      { name: "Avatar identique", detail: "pHash 97% avec le portrait X.", source: "pHash", weight: 97 },
-      { name: "Cross-link", detail: "README → profil X.", source: "observé", weight: 88 },
+      { name: "Commit email", detail: "j***@proton.me reused across 3 linked accounts.", source: "observed · git metadata", weight: 93 },
+      { name: "Matching avatar", detail: "pHash 97% with the X portrait.", source: "pHash", weight: 97 },
+      { name: "Cross-link", detail: "README -> X profile.", source: "observed", weight: 88 },
     ],
   },
   {
     id: "ma", platform: "MASTODON", handle: "@johndoe@infosec.exchange", disc: "MA", confidence: 81, status: "review",
     evidence: [
-      { name: "Bio dupliquée", detail: "Texte de bio copié mot pour mot depuis X.", source: "similarité textuelle", weight: 88 },
-      { name: "Avatar proche", detail: "pHash 95%.", source: "pHash", weight: 95 },
-      { name: "Fuseau d'activité", detail: "Pics d'activité UTC+1 cohérents.", source: "statistique · indice faible", weight: 55 },
+      { name: "Duplicated bio", detail: "Bio text copied verbatim from X.", source: "text similarity", weight: 88 },
+      { name: "Near-match avatar", detail: "pHash 95%.", source: "pHash", weight: 95 },
+      { name: "Activity timezone", detail: "Activity peaks consistent with UTC+1.", source: "statistical · weak signal", weight: 55 },
     ],
   },
   {
     id: "kb", platform: "KEYBASE", handle: "johndoe", disc: "KB", confidence: 88, status: "review",
+    linkedIds: ["x", "gh", "rd"],
     evidence: [
-      { name: "Clé PGP", detail: "Fingerprint lié à l'email connu.", source: "cryptographique", weight: 92 },
-      { name: "Username proche", detail: "johndoe.", source: "déterministe", weight: 70 },
+      { name: "PGP key", detail: "Fingerprint tied to the known email.", source: "cryptographic", weight: 92 },
+      { name: "Verified accounts", detail: "Declares and proves X, GitHub, Reddit.", source: "keybase · cryptographic proofs", weight: 90 },
+      { name: "Near-match username", detail: "johndoe.", source: "deterministic", weight: 70 },
     ],
   },
   {
     id: "rd", platform: "REDDIT", handle: "u/john_doe_", disc: "RD", confidence: 74, status: "review",
     evidence: [
-      { name: "Username fuzzy", detail: "john_doe_ · distance 0.82.", source: "déterministe", weight: 72 },
-      { name: "Style d'écriture", detail: "Tournures récurrentes (indice, non probant).", source: "stylométrie · indice", weight: 60 },
+      { name: "Fuzzy username", detail: "john_doe_ · distance 0.82.", source: "deterministic", weight: 72 },
+      { name: "Writing style", detail: "Recurring phrasings (signal, not proof).", source: "stylometry · weak signal", weight: 60 },
     ],
   },
   {
     id: "hf", platform: "FORUM", handle: "d0e", disc: "HF", confidence: 62, status: "candidate",
     evidence: [
-      { name: "Fragment PGP", detail: "4 derniers octets identiques.", source: "cryptographique · partiel", weight: 65 },
-      { name: "Fuseau", detail: "UTC+1.", source: "statistique · indice", weight: 55 },
+      { name: "PGP fragment", detail: "Last 4 bytes identical.", source: "cryptographic · partial", weight: 65 },
+      { name: "Timezone", detail: "UTC+1.", source: "statistical · weak signal", weight: 55 },
     ],
   },
   {
     id: "st", platform: "STEAM", handle: "johndoe1990", disc: "ST", confidence: 58, status: "candidate",
     evidence: [
-      { name: "Racine + millésime", detail: "johndoe + 1990.", source: "déterministe", weight: 60 },
-      { name: "Cohérence d'âge", detail: "1990 aligné avec autres profils.", source: "corrélation faible", weight: 50 },
+      { name: "Root + year", detail: "johndoe + 1990.", source: "deterministic", weight: 60 },
+      { name: "Age consistency", detail: "1990 aligned with other profiles.", source: "weak correlation", weight: 50 },
     ],
   },
   {
     id: "tg", platform: "TELEGRAM", handle: "@jd_1990", disc: "TG", confidence: 46, status: "candidate",
     evidence: [
-      { name: "Téléphone partiel", detail: "+33 6 ** ** *1 90.", source: "observé · partiel", weight: 48 },
-      { name: "Initiales + millésime", detail: "jd + 1990.", source: "spéculatif", weight: 40 },
+      { name: "Partial phone", detail: "+33 6 ** ** *1 90.", source: "observed · partial", weight: 48 },
+      { name: "Initials + year", detail: "jd + 1990.", source: "speculative", weight: 40 },
     ],
   },
   {
     id: "ig", platform: "INSTAGRAM", handle: "john.doe.real", disc: "IG", confidence: 21, status: "rejected",
     evidence: [
-      { name: "Avatar divergent", detail: "pHash 21% — visage différent.", source: "pHash · contradiction", weight: 21 },
-      { name: "Géo incohérente", detail: "Profil localisé au Texas.", source: "observé · contradiction", weight: 15 },
+      { name: "Divergent avatar", detail: "pHash 21% — different face.", source: "pHash · contradiction", weight: 21 },
+      { name: "Inconsistent geo", detail: "Profile based in Texas.", source: "observed · contradiction", weight: 15 },
     ],
   },
 ];
 
 export const BANDS: Record<Status, { r0: number; r1: number; label: string }> = {
-  confirmed: { r0: 0.16, r1: 0.27, label: "CONFIRMÉ" },
-  review: { r0: 0.32, r1: 0.47, label: "À VÉRIFIER" },
-  candidate: { r0: 0.52, r1: 0.70, label: "CANDIDAT" },
-  rejected: { r0: 0.86, r1: 0.98, label: "ORBITE FROIDE" },
+  confirmed: { r0: 0.16, r1: 0.27, label: "CONFIRMED" },
+  review: { r0: 0.32, r1: 0.47, label: "TO REVIEW" },
+  candidate: { r0: 0.52, r1: 0.70, label: "CANDIDATE" },
+  rejected: { r0: 0.86, r1: 0.98, label: "COLD ORBIT" },
 };
 
 export const BAND_ORDER: Status[] = ["confirmed", "review", "candidate", "rejected"];

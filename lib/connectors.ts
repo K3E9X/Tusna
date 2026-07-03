@@ -7,8 +7,13 @@
 // pivots" catalogue (cipher387), not to automated connectors.
 
 export interface ProfileLink {
-  label: string;
+  /** service identifier, e.g. "twitter", "github", "reddit" */
+  service: string;
+  /** the declared handle on that service, when known */
+  handle?: string;
   url: string;
+  /** display label */
+  label: string;
 }
 
 export interface RawProfile {
@@ -27,7 +32,11 @@ export interface RawProfile {
   links?: ProfileLink[];
   /** true when existence is inferred by URL pattern (WhatsMyName), not an official API */
   unverified?: boolean;
-  /** short provenance, e.g. "api.github.com · API publique" */
+  /** true when the account was found via a handle derived from an email (weaker person-link) */
+  derived?: boolean;
+  /** true when this node was created from another account's declared/verified link */
+  declared?: boolean;
+  /** short provenance, e.g. "api.github.com · public API" */
   source: string;
 }
 
@@ -62,8 +71,9 @@ async function github(u: string): Promise<RawProfile | null> {
   return {
     id: "github", platform: "GITHUB", disc: "GH", handle: d.login, url: d.html_url,
     displayName: d.name || undefined, bio: d.bio || undefined, avatar: d.avatar_url || undefined,
-    createdAt: d.created_at || undefined, links: d.blog ? [{ label: "site", url: d.blog }] : undefined,
-    source: "api.github.com · API publique",
+    createdAt: d.created_at || undefined,
+    links: d.blog ? [{ service: "web", url: d.blog, label: "site" }] : undefined,
+    source: "api.github.com · public API",
   };
 }
 
@@ -75,7 +85,7 @@ async function gitlab(u: string): Promise<RawProfile | null> {
   return {
     id: "gitlab", platform: "GITLAB", disc: "GL", handle: d.username, url: d.web_url,
     displayName: d.name || undefined, bio: d.bio || undefined, avatar: d.avatar_url || undefined,
-    source: "gitlab.com · API publique",
+    source: "gitlab.com · public API",
   };
 }
 
@@ -90,7 +100,7 @@ async function reddit(u: string): Promise<RawProfile | null> {
     displayName: d.subreddit?.title || undefined, bio: d.subreddit?.public_description || undefined,
     avatar: (d.icon_img || d.snoovatar_img || "").split("?")[0] || undefined,
     createdAt: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : undefined,
-    source: "reddit.com · about.json publique",
+    source: "reddit.com · public about.json",
   };
 }
 
@@ -103,7 +113,7 @@ async function hackernews(u: string): Promise<RawProfile | null> {
     url: `https://news.ycombinator.com/user?id=${d.id}`,
     bio: d.about ? String(d.about).replace(/<[^>]+>/g, " ").slice(0, 200) : undefined,
     createdAt: d.created ? new Date(d.created * 1000).toISOString() : undefined,
-    source: "news.ycombinator.com · API publique",
+    source: "news.ycombinator.com · public API",
   };
 }
 
@@ -116,14 +126,14 @@ async function keybase(u: string): Promise<RawProfile | null> {
   const links: ProfileLink[] = proofs
     .filter((p: any) => p?.nametag && p?.proof_type)
     .slice(0, 6)
-    .map((p: any) => ({ label: `${p.proof_type}:${p.nametag}`, url: p.service_url || p.proof_url || "" }));
+    .map((p: any) => ({ service: p.proof_type, handle: p.nametag, url: p.service_url || p.proof_url || "", label: `${p.proof_type}:${p.nametag}` }));
   return {
     id: "keybase", platform: "KEYBASE", disc: "KB", handle: d.basics.username,
     url: `https://keybase.io/${d.basics.username}`,
     displayName: d.profile?.full_name || undefined, bio: d.profile?.bio || undefined,
     avatar: d.pictures?.primary?.url || undefined,
     links: links.length ? links : undefined,
-    source: "keybase.io · API publique (comptes vérifiés)",
+    source: "keybase.io · public API (verified accounts)",
   };
 }
 
@@ -133,14 +143,14 @@ async function gravatar(u: string): Promise<RawProfile | null> {
   const e = Array.isArray(j?.entry) ? j.entry[0] : null;
   if (!e?.hash) return null;
   const accounts = Array.isArray(e.accounts) ? e.accounts : [];
-  const links: ProfileLink[] = accounts.slice(0, 6).map((a: any) => ({ label: a.shortname || a.name || "compte", url: a.url || "" }));
+  const links: ProfileLink[] = accounts.slice(0, 6).map((a: any) => ({ service: a.shortname || a.name || "account", handle: a.username || a.display || undefined, url: a.url || "", label: a.shortname || a.name || "account" }));
   return {
     id: "gravatar", platform: "GRAVATAR", disc: "GR", handle: e.preferredUsername || u,
     url: e.profileUrl || `https://gravatar.com/${u}`,
     displayName: e.displayName || e.name?.formatted || undefined,
     bio: e.aboutMe || undefined, avatar: e.thumbnailUrl || undefined,
     links: links.length ? links : undefined,
-    source: "gravatar.com · API publique",
+    source: "gravatar.com · public API",
   };
 }
 
@@ -153,7 +163,7 @@ async function bluesky(u: string): Promise<RawProfile | null> {
     id: "bluesky", platform: "BLUESKY", disc: "BS", handle: d.handle,
     url: `https://bsky.app/profile/${d.handle}`,
     displayName: d.displayName || undefined, bio: d.description || undefined, avatar: d.avatar || undefined,
-    createdAt: d.createdAt || undefined, source: "public.api.bsky.app · API publique",
+    createdAt: d.createdAt || undefined, source: "public.api.bsky.app · public API",
   };
 }
 
@@ -166,7 +176,7 @@ async function mastodon(u: string): Promise<RawProfile | null> {
     url: d.url, displayName: d.display_name || undefined,
     bio: d.note ? String(d.note).replace(/<[^>]+>/g, " ").slice(0, 200) : undefined,
     avatar: d.avatar || undefined, createdAt: d.created_at || undefined,
-    source: "mastodon.social · API publique",
+    source: "mastodon.social · public API",
   };
 }
 
@@ -178,7 +188,7 @@ async function chesscom(u: string): Promise<RawProfile | null> {
     id: "chesscom", platform: "CHESS.COM", disc: "CH", handle: d.username, url: d.url,
     displayName: d.name || undefined, avatar: d.avatar || undefined,
     createdAt: d.joined ? new Date(d.joined * 1000).toISOString() : undefined,
-    source: "api.chess.com · API publique",
+    source: "api.chess.com · public API",
   };
 }
 
@@ -192,7 +202,7 @@ async function codeforces(u: string): Promise<RawProfile | null> {
     id: "codeforces", platform: "CODEFORCES", disc: "CF", handle: d.handle,
     url: `https://codeforces.com/profile/${d.handle}`,
     displayName: name, avatar: d.titlePhoto ? `https:${d.titlePhoto}` : undefined,
-    source: "codeforces.com · API publique",
+    source: "codeforces.com · public API",
   };
 }
 
@@ -203,7 +213,7 @@ async function npm(u: string): Promise<RawProfile | null> {
   return {
     id: "npm", platform: "NPM", disc: "NP", handle: d.name,
     url: `https://www.npmjs.com/~${d.name}`,
-    source: "registry.npmjs.org · API publique",
+    source: "registry.npmjs.org · public API",
   };
 }
 
@@ -215,7 +225,7 @@ async function dockerhub(u: string): Promise<RawProfile | null> {
     id: "dockerhub", platform: "DOCKER HUB", disc: "DK", handle: d.username,
     url: `https://hub.docker.com/u/${d.username}`,
     displayName: d.full_name || undefined, avatar: d.gravatar_url || undefined,
-    createdAt: d.date_joined || undefined, source: "hub.docker.com · API publique",
+    createdAt: d.date_joined || undefined, source: "hub.docker.com · public API",
   };
 }
 
@@ -228,7 +238,7 @@ async function wikipedia(u: string): Promise<RawProfile | null> {
     id: "wikipedia", platform: "WIKIPEDIA", disc: "WK", handle: d.name,
     url: `https://en.wikipedia.org/wiki/User:${enc(d.name)}`,
     bio: typeof d.editcount === "number" ? `${d.editcount} contributions` : undefined,
-    createdAt: d.registration || undefined, source: "en.wikipedia.org · API publique",
+    createdAt: d.registration || undefined, source: "en.wikipedia.org · public API",
   };
 }
 

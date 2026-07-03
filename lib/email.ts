@@ -49,7 +49,7 @@ export async function gravatarByEmail(email: string): Promise<RawProfile | null>
   const e = Array.isArray(j?.entry) ? j.entry[0] : null;
   if (!e?.hash) return null;
   const accounts = Array.isArray(e.accounts) ? e.accounts : [];
-  const links: ProfileLink[] = accounts.slice(0, 6).map((a: any) => ({ label: a.shortname || a.name || "compte", url: a.url || "" }));
+  const links: ProfileLink[] = accounts.slice(0, 6).map((a: any) => ({ service: a.shortname || a.name || "compte", handle: a.username || a.display || undefined, url: a.url || "", label: a.shortname || a.name || "compte" }));
   return {
     id: "gravatar", platform: "GRAVATAR", disc: "GR",
     handle: e.preferredUsername || norm.split("@")[0],

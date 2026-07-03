@@ -156,6 +156,24 @@ export default function OrbitBoard() {
         ctx.setLineDash(d.status === "candidate" ? [1, 5] : []);
         ctx.stroke(); ctx.setLineDash([]);
       });
+      // inter-node edges: declared / verified cross-links between accounts
+      const byId: Record<string, WorkNode> = {};
+      nodes.forEach((n) => (byId[n.id] = n));
+      nodes.forEach((d) => {
+        if (!d.linkedIds) return;
+        d.linkedIds.forEach((lid) => {
+          if (d.id >= lid) return; // draw each pair once
+          const e = byId[lid];
+          if (!e) return;
+          ctx.globalAlpha = 0.5 * Math.min(d.op, e.op);
+          const mx = (d.x + e.x) / 2, my = (d.y + e.y) / 2;
+          const nx = e.y - d.y, ny = d.x - e.x, nl = Math.hypot(nx, ny) || 1, bend = 18;
+          ctx.beginPath(); ctx.moveTo(d.x, d.y);
+          ctx.quadraticCurveTo(mx + (nx / nl) * bend, my + (ny / nl) * bend, e.x, e.y);
+          ctx.strokeStyle = cssv("--accent"); ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+          ctx.stroke(); ctx.setLineDash([]);
+        });
+      });
       ctx.globalAlpha = 1;
       ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fillStyle = cssv("--accent"); ctx.fill();
       ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(cx, cy, 13, 0, Math.PI * 2); ctx.strokeStyle = cssv("--accent"); ctx.lineWidth = 1; ctx.stroke();

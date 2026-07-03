@@ -7,6 +7,18 @@ import type { Signal, Evidence, Status } from "@/lib/signals";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const SERVICE_TO_PLATFORM: Record<string, string> = {
+  twitter: "X / TWITTER", x: "X / TWITTER", github: "GITHUB", gitlab: "GITLAB",
+  reddit: "REDDIT", hackernews: "HACKER NEWS", facebook: "FACEBOOK", mastodon: "MASTODON",
+  bluesky: "BLUESKY", keybase: "KEYBASE", telegram: "TELEGRAM", instagram: "INSTAGRAM",
+  youtube: "YOUTUBE", twitch: "TWITCH", stackoverflow: "STACK OVERFLOW", hackerone: "HACKERONE",
+  wordpress: "WORDPRESS", tumblr: "TUMBLR", vimeo: "VIMEO", flickr: "FLICKR", medium: "MEDIUM",
+};
+const SKIP_SERVICE = new Set(["web", "dns", "http", "https", "pgp", "gpg", "bitcoin", "zcash", "generic_web_site"]);
+const serviceToPlatform = (s: string) => SERVICE_TO_PLATFORM[s.toLowerCase()] || s.toUpperCase();
+const isRealService = (s: string) => !SKIP_SERVICE.has(s.toLowerCase());
+const disc2 = (name: string) => (name.replace(/[^A-Za-z0-9]/g, "").slice(0, 2) || "LK").toUpperCase();
+
 /** Compute perceptual hashes for profiles that expose an avatar (bounded, graceful). */
 async function enrichAvatars(profiles: RawProfile[], max = 14): Promise<void> {
   const targets = profiles.filter((p) => p.avatar).slice(0, max);
@@ -47,6 +59,13 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
         detail: `${p.handle} trouvé sur ${p.platform} par motif d'URL (WhatsMyName) — existence non vérifiée par une API.`,
         source: p.source,
         weight: 45,
+      });
+    } else if (p.declared) {
+      evidence.push({
+        name: "Compte déclaré",
+        detail: `${p.handle} sur ${p.platform} — ${p.source}.`,
+        source: p.source,
+        weight: 85,
       });
     } else if (p.derived) {
       evidence.push({
@@ -104,7 +123,7 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
       }
     }
 
-    const base = p.unverified ? (exact ? 42 : 32) : p.derived ? (exact ? 48 : 38) : (exact ? 62 : 46);
+    const base = p.unverified ? (exact ? 42 : 32) : p.declared ? 60 : p.derived ? (exact ? 48 : 38) : (exact ? 62 : 46);
     let confidence = base + crossBoost;
     if (p.displayName) confidence += 6;
     if (p.bio) confidence += 5;
@@ -162,10 +181,44 @@ export async function GET(req: NextRequest) {
     for (const p of mergedRaw) if (!byId.has(p.id)) byId.set(p.id, p);
     const merged = [...byId.values()];
 
+    // expand declared/verified links (Keybase, Gravatar) into connected nodes + edges
+    const edges = new Map<string, Set<string>>();
+    const addEdge = (a: string, b: string) => {
+      if (a === b) return;
+      (edges.get(a) ?? edges.set(a, new Set()).get(a)!).add(b);
+      (edges.get(b) ?? edges.set(b, new Set()).get(b)!).add(a);
+    };
+    for (const p of [...merged]) {
+      if (!p.links?.length) continue;
+      for (const l of p.links) {
+        if (!isRealService(l.service)) continue;
+        const platN = norm(serviceToPlatform(l.service));
+        let target = merged.find(
+          (q) => q.id !== p.id && (norm(q.platform) === platN || (l.handle && norm(q.handle.replace(/^u\//, "")) === norm(l.handle))),
+        );
+        if (!target && l.handle) {
+          const id = `decl:${l.service.toLowerCase()}:${norm(l.handle)}`;
+          target = byId.get(id);
+          if (!target) {
+            target = {
+              id, platform: serviceToPlatform(l.service), disc: disc2(serviceToPlatform(l.service)),
+              handle: l.handle, url: l.url, declared: true, source: `déclaré et vérifié via ${p.platform}`,
+            };
+            merged.push(target); byId.set(id, target);
+          }
+        }
+        if (target) addEdge(p.id, target.id);
+      }
+    }
+
     // link accounts by avatar (perceptual hash) before scoring
     await enrichAvatars(merged);
 
     const signals = correlate(matchTarget, merged);
+    for (const s of signals) {
+      const set = edges.get(s.id);
+      if (set?.size) s.linkedIds = [...set];
+    }
     signals.sort((a, b) => b.confidence - a.confidence);
     return NextResponse.json({
       seed: q,

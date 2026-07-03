@@ -27,6 +27,8 @@ export interface Signal {
   confidence: number;
   status: Status;
   evidence: Evidence[];
+  /** ids of other signals this account is linked to (declared/verified cross-links) */
+  linkedIds?: string[];
 }
 
 export const SEED = "j0hn_doe";
@@ -34,6 +36,7 @@ export const SEED = "j0hn_doe";
 export const SIGNALS: Signal[] = [
   {
     id: "x", platform: "X / TWITTER", handle: "@j0hn_doe", disc: "X", confidence: 96, status: "confirmed",
+    linkedIds: ["gh"],
     evidence: [
       { name: "Avatar identique", detail: "Hash perceptuel du portrait — collision quasi exacte.", source: "pHash · agrégé localement", weight: 98 },
       { name: "Cross-link explicite", detail: "La bio pointe vers github.com/j0hndoe.", source: "observé · page publique", weight: 95 },
@@ -58,8 +61,10 @@ export const SIGNALS: Signal[] = [
   },
   {
     id: "kb", platform: "KEYBASE", handle: "johndoe", disc: "KB", confidence: 88, status: "review",
+    linkedIds: ["x", "gh", "rd"],
     evidence: [
       { name: "Clé PGP", detail: "Fingerprint lié à l'email connu.", source: "cryptographique", weight: 92 },
+      { name: "Comptes vérifiés", detail: "Déclare et prouve X, GitHub, Reddit.", source: "keybase · preuves cryptographiques", weight: 90 },
       { name: "Username proche", detail: "johndoe.", source: "déterministe", weight: 70 },
     ],
   },

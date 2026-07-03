@@ -7,8 +7,13 @@
 // pivots" catalogue (cipher387), not to automated connectors.
 
 export interface ProfileLink {
-  label: string;
+  /** service identifier, e.g. "twitter", "github", "reddit" */
+  service: string;
+  /** the declared handle on that service, when known */
+  handle?: string;
   url: string;
+  /** display label */
+  label: string;
 }
 
 export interface RawProfile {
@@ -29,6 +34,8 @@ export interface RawProfile {
   unverified?: boolean;
   /** true when the account was found via a handle derived from an email (weaker person-link) */
   derived?: boolean;
+  /** true when this node was created from another account's declared/verified link */
+  declared?: boolean;
   /** short provenance, e.g. "api.github.com · API publique" */
   source: string;
 }
@@ -64,7 +71,8 @@ async function github(u: string): Promise<RawProfile | null> {
   return {
     id: "github", platform: "GITHUB", disc: "GH", handle: d.login, url: d.html_url,
     displayName: d.name || undefined, bio: d.bio || undefined, avatar: d.avatar_url || undefined,
-    createdAt: d.created_at || undefined, links: d.blog ? [{ label: "site", url: d.blog }] : undefined,
+    createdAt: d.created_at || undefined,
+    links: d.blog ? [{ service: "web", url: d.blog, label: "site" }] : undefined,
     source: "api.github.com · API publique",
   };
 }
@@ -118,7 +126,7 @@ async function keybase(u: string): Promise<RawProfile | null> {
   const links: ProfileLink[] = proofs
     .filter((p: any) => p?.nametag && p?.proof_type)
     .slice(0, 6)
-    .map((p: any) => ({ label: `${p.proof_type}:${p.nametag}`, url: p.service_url || p.proof_url || "" }));
+    .map((p: any) => ({ service: p.proof_type, handle: p.nametag, url: p.service_url || p.proof_url || "", label: `${p.proof_type}:${p.nametag}` }));
   return {
     id: "keybase", platform: "KEYBASE", disc: "KB", handle: d.basics.username,
     url: `https://keybase.io/${d.basics.username}`,
@@ -135,7 +143,7 @@ async function gravatar(u: string): Promise<RawProfile | null> {
   const e = Array.isArray(j?.entry) ? j.entry[0] : null;
   if (!e?.hash) return null;
   const accounts = Array.isArray(e.accounts) ? e.accounts : [];
-  const links: ProfileLink[] = accounts.slice(0, 6).map((a: any) => ({ label: a.shortname || a.name || "compte", url: a.url || "" }));
+  const links: ProfileLink[] = accounts.slice(0, 6).map((a: any) => ({ service: a.shortname || a.name || "compte", handle: a.username || a.display || undefined, url: a.url || "", label: a.shortname || a.name || "compte" }));
   return {
     id: "gravatar", platform: "GRAVATAR", disc: "GR", handle: e.preferredUsername || u,
     url: e.profileUrl || `https://gravatar.com/${u}`,

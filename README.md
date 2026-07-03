@@ -70,6 +70,8 @@ The **APPS** panel is a registry of sources you install and combine:
 
 This is the "install an app → it adapts to the seed and correlates with the others" model: automated connectors plug straight into the pipeline, manual tools bridge what can't be automated (closed APIs / restrictive ToS).
 
+**Closing the manual loop.** When a manual pivot surfaces a finding, add it to the board: `+ result` on an installed pivot (or the `+ NODE` button) opens a small form (platform, handle, url) and drops a new body into the live orbit, tied to the seed and marked "added manually — to confirm". It then behaves like any other node (confirm / review / reject, save with the case). So a manual tool's output re-enters the same correlated view instead of living in a separate tab.
+
 ## Persistence
 
 Investigations can be **saved and reloaded** (SAVE / CASES in the top bar). Storage is hybrid:

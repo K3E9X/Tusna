@@ -20,6 +20,8 @@ export interface RawProfile {
   displayName?: string;
   bio?: string;
   avatar?: string;
+  /** perceptual hash (dHash) of the avatar, filled in by the enrichment step */
+  avatarHash?: string;
   createdAt?: string;
   /** self-declared / verified links to other accounts (strong cross-signal) */
   links?: ProfileLink[];

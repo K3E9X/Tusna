@@ -52,6 +52,8 @@ Le bouton **SCANNER** interroge en parallèle **13 APIs publiques officielles** 
 
 **Couche large — WhatsMyName.** En plus des 13 APIs, le scan interroge le **dataset officiel WhatsMyName** (600+ sites, chargé à l'exécution depuis le dépôt maintenu). Ces présences sont détectées par **motif d'URL** : elles sont explicitement marquées **« non vérifiées »**, scorées bas et placées en orbite froide — l'humain confirme. Cela élargit la couverture **sans fabriquer de faux positifs**. Le nombre de sites testés par scan est plafonné (`?depth=`, défaut 100, pour tenir dans la limite de temps d'une fonction serverless) et la réponse expose `coverage.capped` — **jamais de troncature silencieuse**.
 
+**Liaison par la photo — pHash.** Les avatars des présences trouvées sont hachés (dHash perceptuel, local) et comparés deux à deux : deux comptes dont la photo concorde (faible distance de Hamming) sont reliés par une preuve forte « Avatar identique/proche ». C'est **déterministe et vérifiable** — donc sans hallucination — et ça relie des comptes même quand les pseudos diffèrent. Aucun service facial externe : on compare des images, pas des visages (pas d'exposition biométrique).
+
 Volontairement **exclus** des connecteurs auto : Instagram, X/Twitter, Facebook, LinkedIn, TikTok (API fermées / CGU restrictives) — ils relèvent des **pivots manuels** (catalogue cipher387), pas de l'automatisation.
 
 ## Direction artistique

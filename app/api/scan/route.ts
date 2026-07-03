@@ -55,45 +55,45 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
     const exact = handleN === seedN;
     if (p.unverified) {
       evidence.push({
-        name: "Présence détectée",
-        detail: `${p.handle} trouvé sur ${p.platform} par motif d'URL (WhatsMyName) — existence non vérifiée par une API.`,
+        name: "Presence detected",
+        detail: `${p.handle} found on ${p.platform} by URL pattern (WhatsMyName) — existence not verified by an API.`,
         source: p.source,
         weight: 45,
       });
     } else if (p.declared) {
       evidence.push({
-        name: "Compte déclaré",
-        detail: `${p.handle} sur ${p.platform} — ${p.source}.`,
+        name: "Declared account",
+        detail: `${p.handle} on ${p.platform} — ${p.source}.`,
         source: p.source,
         weight: 85,
       });
     } else if (p.derived) {
       evidence.push({
-        name: "Handle dérivé de l'email",
-        detail: `${p.handle} obtenu en dérivant le handle de l'email — compte public existant, lien à la personne à confirmer.`,
+        name: "Handle derived from email",
+        detail: `${p.handle} obtained by deriving the handle from the email — public account exists, link to the person to be confirmed.`,
         source: p.source,
         weight: 50,
       });
     } else {
       evidence.push({
-        name: exact ? "Username exact" : "Username proche",
-        detail: `${p.handle} ${exact ? "≡" : "≈"} cible « ${matchTarget} », compte public existant.`,
+        name: exact ? "Exact username" : "Near-match username",
+        detail: `${p.handle} ${exact ? "=" : "≈"} target "${matchTarget}", public account exists.`,
         source: p.source,
         weight: exact ? 74 : 58,
       });
     }
 
-    if (p.displayName) evidence.push({ name: "Nom public", detail: p.displayName, source: p.source, weight: 55 });
-    if (p.bio) evidence.push({ name: "Bio publique", detail: p.bio.slice(0, 140), source: p.source, weight: 44 });
-    if (p.avatar) evidence.push({ name: "Avatar présent", detail: p.avatarHash ? "Image de profil publique (hachée pour corrélation)." : "Image de profil publique.", source: p.source, weight: 48 });
-    if (p.createdAt) evidence.push({ name: "Ancienneté", detail: `Compte créé le ${p.createdAt.slice(0, 10)}.`, source: p.source, weight: 30 });
+    if (p.displayName) evidence.push({ name: "Public name", detail: p.displayName, source: p.source, weight: 55 });
+    if (p.bio) evidence.push({ name: "Public bio", detail: p.bio.slice(0, 140), source: p.source, weight: 44 });
+    if (p.avatar) evidence.push({ name: "Avatar present", detail: p.avatarHash ? "Public profile image (hashed for correlation)." : "Public profile image.", source: p.source, weight: 48 });
+    if (p.createdAt) evidence.push({ name: "Account age", detail: `Account created on ${p.createdAt.slice(0, 10)}.`, source: p.source, weight: 30 });
 
     // cross-signal: display name shared with another platform
     const other = profiles.find((q) => q.id !== p.id && q.displayName && p.displayName && norm(q.displayName) === norm(p.displayName));
     let crossBoost = 0;
     if (other) {
       crossBoost += 14;
-      evidence.push({ name: "Nom concordant", detail: `Nom public identique à ${other.platform}.`, source: "corrélation inter-sources", weight: 82 });
+      evidence.push({ name: "Matching name", detail: `Public name identical to ${other.platform}.`, source: "cross-source correlation", weight: 82 });
     }
 
     // strong cross-signal: matching avatar (perceptual hash) with another platform
@@ -107,9 +107,9 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
       if (best) {
         crossBoost += best.strong ? 20 : 12;
         evidence.push({
-          name: best.strong ? "Avatar identique" : "Avatar proche",
-          detail: `Photo de profil concordante avec ${best.platform} (distance pHash ${best.distance}/64).`,
-          source: "corrélation d'avatars · pHash local",
+          name: best.strong ? "Matching avatar" : "Near-match avatar",
+          detail: `Profile photo matches ${best.platform} (pHash distance ${best.distance}/64).`,
+          source: "avatar correlation · local pHash",
           weight: best.strong ? 92 : 78,
         });
       }
@@ -119,7 +119,7 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
     if (p.links?.length) {
       crossBoost += 18;
       for (const l of p.links.slice(0, 4)) {
-        evidence.push({ name: "Compte lié déclaré", detail: l.label + (l.url ? ` → ${l.url}` : ""), source: `${p.source} · lien déclaré`, weight: 85 });
+        evidence.push({ name: "Declared linked account", detail: l.label + (l.url ? ` → ${l.url}` : ""), source: `${p.source} · declared link`, weight: 85 });
       }
     }
 
@@ -148,11 +148,11 @@ export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("username") || "").trim();
   const depth = clamp(parseInt(req.nextUrl.searchParams.get("depth") || "100", 10) || 100, 1, 250);
   if (!q || q.length > 128) {
-    return NextResponse.json({ error: "entrée invalide" }, { status: 400 });
+    return NextResponse.json({ error: "invalid input" }, { status: 400 });
   }
   const isEmail = EMAIL_RE.test(q);
   if (!isEmail && /[^\w.\-@]/.test(q)) {
-    return NextResponse.json({ error: "pseudo invalide" }, { status: 400 });
+    return NextResponse.json({ error: "invalid username" }, { status: 400 });
   }
   try {
     let apiProfiles: RawProfile[];
@@ -202,7 +202,7 @@ export async function GET(req: NextRequest) {
           if (!target) {
             target = {
               id, platform: serviceToPlatform(l.service), disc: disc2(serviceToPlatform(l.service)),
-              handle: l.handle, url: l.url, declared: true, source: `déclaré et vérifié via ${p.platform}`,
+              handle: l.handle, url: l.url, declared: true, source: `declared & verified via ${p.platform}`,
             };
             merged.push(target); byId.set(id, target);
           }
@@ -231,6 +231,6 @@ export async function GET(req: NextRequest) {
       coverage: { checked, available: totalSites, capped: checked < totalSites },
     });
   } catch (e) {
-    return NextResponse.json({ error: "scan échoué", detail: String(e) }, { status: 500 });
+    return NextResponse.json({ error: "scan failed", detail: String(e) }, { status: 500 });
   }
 }

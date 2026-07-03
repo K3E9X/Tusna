@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SIGNALS, SEED, BANDS, BAND_ORDER, type Signal, type Status } from "@/lib/signals";
+import { listCases, saveCase, removeCase, loadCase, type Case } from "@/lib/cases";
 
 interface WorkNode extends Signal {
   x: number; y: number; vx: number; vy: number; op: number; a: number;
@@ -23,6 +24,10 @@ export default function OrbitBoard() {
   const [dataVersion, setDataVersion] = useState(0);
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState<string | null>(null);
+  const [cases, setCases] = useState<Case[]>([]);
+  const [casesOpen, setCasesOpen] = useState(false);
+
+  useEffect(() => { setCases(listCases()); }, []);
 
   useEffect(() => { seedRef.current = seed; }, [seed]);
   useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
@@ -179,7 +184,7 @@ export default function OrbitBoard() {
       ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(cx, cy, 13, 0, Math.PI * 2); ctx.strokeStyle = cssv("--accent"); ctx.lineWidth = 1; ctx.stroke();
       ctx.globalAlpha = 0.12; ctx.beginPath(); ctx.arc(cx, cy, 26, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
       ctx.fillStyle = cssv("--ink-2"); ctx.font = "9px ui-monospace, monospace"; ctx.textAlign = "center";
-      ctx.fillText("GRAINE", cx, cy + 44);
+      ctx.fillText("SEED", cx, cy + 44);
       ctx.fillStyle = cssv("--accent"); ctx.font = "11px ui-monospace, monospace";
       ctx.fillText(seedRef.current || "—", cx, cy - 38);
       nodes.forEach((d) => {
@@ -222,16 +227,48 @@ export default function OrbitBoard() {
     try {
       const res = await fetch(`/api/scan?username=${encodeURIComponent(u)}`);
       const data = await res.json();
-      if (!res.ok) { setScanMsg(data?.error || "scan échoué"); return; }
-      if (!data.signals?.length) { setScanMsg("aucune présence publique trouvée"); return; }
+      if (!res.ok) { setScanMsg(data?.error || "scan failed"); return; }
+      if (!data.signals?.length) { setScanMsg("no public presence found"); return; }
       rebuildRef.current(data.signals, true);
-      setScanMsg(`${data.signals.length} présence(s) réelle(s)`);
+      setScanMsg(`${data.signals.length} real presence(s)`);
     } catch {
-      setScanMsg("réseau indisponible");
+      setScanMsg("network unavailable");
     } finally {
       setScanning(false);
       setTimeout(() => setScanMsg(null), 4000);
     }
+  }
+
+  function currentSignals(): Signal[] {
+    return nodesRef.current.map((n) => {
+      const { x, y, vx, vy, op, a, ...s } = n; // strip physics fields
+      return s;
+    });
+  }
+
+  function saveCurrent() {
+    const sigs = currentSignals();
+    if (!sigs.length) return;
+    const s = seedRef.current.trim() || "case";
+    saveCase(s, s, s.includes("@") ? "email" : "username", sigs);
+    setCases(listCases());
+    setScanMsg("case saved");
+    setTimeout(() => setScanMsg(null), 3000);
+  }
+
+  function openCase(id: string) {
+    const c = loadCase(id);
+    if (!c) return;
+    setSeed(c.seed);
+    rebuildRef.current(c.signals, true);
+    setCasesOpen(false);
+    setScanMsg(`loaded "${c.name}"`);
+    setTimeout(() => setScanMsg(null), 3000);
+  }
+
+  function deleteCase(id: string) {
+    removeCase(id);
+    setCases(listCases());
   }
 
   return (
@@ -244,20 +281,40 @@ export default function OrbitBoard() {
       <div className="chrome">
         <div className="wordmark">TUSNA <small>ORBIT</small></div>
         <label className="seed-in">
-          <span>graine</span>
+          <span>seed</span>
           <input
             value={seed} spellCheck={false}
             onChange={(e) => setSeed(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") runScan(); }}
-            aria-label="graine"
+            aria-label="seed"
           />
         </label>
         <div className="flex" />
         <div className="readout">
           {scanMsg && <span style={{ color: "var(--accent)" }}>{scanMsg}</span>}
-          <span className="hide-sm"><span className="dotpulse" /><b>{total}</b> signaux</span>
-          <span><b style={{ color: "var(--confirm)" }}>{confirmedCount}</b> confirmés</span>
-          <button className="btn" onClick={runScan} disabled={scanning}>{scanning ? "…" : "↻ SCANNER"}</button>
+          <span className="hide-sm"><span className="dotpulse" /><b>{total}</b> signals</span>
+          <span><b style={{ color: "var(--confirm)" }}>{confirmedCount}</b> confirmed</span>
+          <button className="btn" onClick={runScan} disabled={scanning}>{scanning ? "…" : "↻ SCAN"}</button>
+          <button className="btn" onClick={saveCurrent}>SAVE</button>
+          <div className="cases-wrap">
+            <button className="btn" onClick={() => { setCases(listCases()); setCasesOpen((o) => !o); }}>
+              CASES{cases.length ? ` (${cases.length})` : ""}
+            </button>
+            {casesOpen && (
+              <div className="cases-pop">
+                {cases.length === 0 && <div className="cases-empty">no saved case</div>}
+                {cases.map((c) => (
+                  <div className="case-row" key={c.id}>
+                    <button className="case-open" onClick={() => openCase(c.id)}>
+                      <span className="case-name">{c.name}</span>
+                      <span className="case-meta">{c.signals.length} signals · {new Date(c.savedAt).toLocaleDateString()}</span>
+                    </button>
+                    <button className="case-del" onClick={() => deleteCase(c.id)} aria-label="delete">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -266,22 +323,22 @@ export default function OrbitBoard() {
           <div className="l" key={k}><span className="tick" />{BANDS[k].label}</div>
         ))}
       </div>
-      <div className="hint">graine&nbsp;· pseudo <b>ou email</b>&nbsp;&nbsp;/&nbsp;&nbsp;SCANNER&nbsp;· 13 APIs + WhatsMyName + pHash d&apos;avatars&nbsp;&nbsp;/&nbsp;&nbsp;clic&nbsp;· preuves&nbsp;&nbsp;/&nbsp;&nbsp;glisser&nbsp;· tirer un corps</div>
+      <div className="hint">seed&nbsp;· username <b>or email</b>&nbsp;&nbsp;/&nbsp;&nbsp;SCAN&nbsp;· 13 APIs + WhatsMyName + avatar pHash&nbsp;&nbsp;/&nbsp;&nbsp;click&nbsp;· evidence&nbsp;&nbsp;/&nbsp;&nbsp;drag&nbsp;· pull a body</div>
 
       <aside className={"inspector" + (selected ? " open" : "")} aria-hidden={!selected}>
         {selected && (
           <>
-            <button className="insp-close" onClick={() => setSelectedId(null)} aria-label="fermer">✕</button>
+            <button className="insp-close" onClick={() => setSelectedId(null)} aria-label="close">✕</button>
             <div className="insp-plat">{selected.platform}</div>
             <div className="insp-handle">{selected.handle}</div>
             <div className="insp-score">
               <b style={{ color: selected.status === "rejected" ? "var(--reject)" : "var(--accent)" }}>{selected.confidence}</b>
-              <span>SCORE DE<br />CORRÉLATION</span>
+              <span>CORRELATION<br />SCORE</span>
             </div>
             <div className="track">
               <i style={{ width: selected.confidence + "%", background: selected.status === "rejected" ? "var(--reject)" : "var(--accent)" }} />
             </div>
-            <div className="sect">PREUVES VÉRIFIÉES</div>
+            <div className="sect">VERIFIED EVIDENCE</div>
             <div className="evs">
               {selected.evidence.map((e, idx) => (
                 <div className="ev" key={idx}>
@@ -295,13 +352,13 @@ export default function OrbitBoard() {
               ))}
             </div>
             <div className="grounded">
-              <b>{selected.evidence.length} preuves</b> rattachées à une source vérifiable. Le score n&apos;agrège que ces
-              signaux — <b>aucune inférence non sourcée</b> n&apos;est produite par le LLM.
+              <b>{selected.evidence.length} evidence items</b> tied to a verifiable source. The score aggregates only these
+              signals — <b>no unsourced inference</b> is produced by the LLM.
             </div>
             <div className="verbs">
-              <button className={"verb on-confirm" + (selected.status === "confirmed" ? " is-confirm" : "")} onClick={() => setStatus(selected.id, "confirmed")}>CONFIRMER</button>
-              <button className={"verb on-review" + (selected.status === "review" ? " is-review" : "")} onClick={() => setStatus(selected.id, "review")}>À VÉRIFIER</button>
-              <button className={"verb on-reject" + (selected.status === "rejected" ? " is-reject" : "")} onClick={() => setStatus(selected.id, "rejected")}>REJETER</button>
+              <button className={"verb on-confirm" + (selected.status === "confirmed" ? " is-confirm" : "")} onClick={() => setStatus(selected.id, "confirmed")}>CONFIRM</button>
+              <button className={"verb on-review" + (selected.status === "review" ? " is-review" : "")} onClick={() => setStatus(selected.id, "review")}>REVIEW</button>
+              <button className={"verb on-reject" + (selected.status === "rejected" ? " is-reject" : "")} onClick={() => setStatus(selected.id, "rejected")}>REJECT</button>
             </div>
           </>
         )}

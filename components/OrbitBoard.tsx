@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SIGNALS, SEED, BANDS, BAND_ORDER, type Signal, type Status } from "@/lib/signals";
 import { listCases, saveCase, removeCase, caseToJSON, parseCase, backendMode, type Case } from "@/lib/cases";
+import { BUILTIN_APPS, MANUAL_APPS, type AppDef } from "@/lib/registry";
+import { loadEnabled, saveEnabled } from "@/lib/apps";
 
 interface WorkNode extends Signal {
   x: number; y: number; vx: number; vy: number; op: number; a: number;
@@ -26,9 +28,28 @@ export default function OrbitBoard() {
   const [scanMsg, setScanMsg] = useState<string | null>(null);
   const [cases, setCases] = useState<Case[]>([]);
   const [casesOpen, setCasesOpen] = useState(false);
+  const [appsOpen, setAppsOpen] = useState(false);
+  const [enabled, setEnabled] = useState<Set<string>>(() => new Set(BUILTIN_APPS.map((a) => a.id)));
+  const enabledRef = useRef(enabled);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { listCases().then(setCases).catch(() => {}); }, []);
+  useEffect(() => { listCases().then(setCases).catch(() => {}); setEnabled(loadEnabled()); }, []);
+  useEffect(() => { enabledRef.current = enabled; }, [enabled]);
+
+  function toggleApp(id: string) {
+    setEnabled((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      saveEnabled(next);
+      return next;
+    });
+  }
+
+  function openTool(app: AppDef) {
+    const s = encodeURIComponent(seedRef.current.trim());
+    const url = app.url ? app.url.replace(/\{seed\}/g, s) : "#";
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
 
   function flashMsg(m: string) { setScanMsg(m); setTimeout(() => setScanMsg(null), 3000); }
 
@@ -226,9 +247,10 @@ export default function OrbitBoard() {
   async function runScan() {
     const u = seedRef.current.trim();
     if (!u || scanning) return;
-    setScanning(true); setScanMsg("scan en cours…");
+    setScanning(true); setScanMsg("scanning…");
     try {
-      const res = await fetch(`/api/scan?username=${encodeURIComponent(u)}`);
+      const cids = [...enabledRef.current].join(",");
+      const res = await fetch(`/api/scan?username=${encodeURIComponent(u)}&connectors=${encodeURIComponent(cids)}`);
       const data = await res.json();
       if (!res.ok) { setScanMsg(data?.error || "scan failed"); return; }
       if (!data.signals?.length) { setScanMsg("no public presence found"); return; }
@@ -325,6 +347,40 @@ export default function OrbitBoard() {
           <button className="btn" onClick={exportCurrent}>EXPORT</button>
           <button className="btn" onClick={() => fileRef.current?.click()}>IMPORT</button>
           <input ref={fileRef} type="file" accept="application/json,.json" onChange={importFile} style={{ display: "none" }} />
+          <div className="cases-wrap">
+            <button className="btn" onClick={() => setAppsOpen((o) => !o)}>
+              APPS ({[...enabled].filter((id) => BUILTIN_APPS.some((a) => a.id === id)).length}/{BUILTIN_APPS.length})
+            </button>
+            {appsOpen && (
+              <div className="apps-pop">
+                <div className="cases-head">connectors — toggle to include in the scan</div>
+                {BUILTIN_APPS.map((a) => (
+                  <div className="app-row" key={a.id}>
+                    <button className={"app-toggle" + (enabled.has(a.id) ? " on" : "")} onClick={() => toggleApp(a.id)} aria-label="toggle">
+                      <span className="app-sw" />
+                    </button>
+                    <div className="app-info">
+                      <span className="app-name">{a.name} <em>{a.category}</em></span>
+                      <span className="app-desc">{a.desc}</span>
+                    </div>
+                  </div>
+                ))}
+                <div className="cases-head">manual pivots (cipher387) — add &amp; open with the seed</div>
+                {MANUAL_APPS.map((a) => (
+                  <div className="app-row" key={a.id}>
+                    <button className={"app-add" + (enabled.has(a.id) ? " added" : "")} onClick={() => toggleApp(a.id)}>
+                      {enabled.has(a.id) ? "✓" : "+"}
+                    </button>
+                    <div className="app-info">
+                      <span className="app-name">{a.name} <em>{a.category}</em> <b className={"app-badge " + a.status}>{a.status}</b></span>
+                      <span className="app-desc">{a.desc}</span>
+                    </div>
+                    {enabled.has(a.id) && <button className="app-open" onClick={() => openTool(a)} aria-label="open">↗</button>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="cases-wrap">
             <button className="btn" onClick={async () => { setCases(await listCases()); setCasesOpen((o) => !o); }}>
               CASES{cases.length ? ` (${cases.length})` : ""}

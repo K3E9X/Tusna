@@ -61,6 +61,15 @@ The **seed** accepts a **username or an email**.
 
 Deliberately **excluded** from automated connectors: Instagram, X/Twitter, Facebook, LinkedIn, TikTok (closed APIs / restrictive ToS) — those belong to the **manual pivots** catalogue (cipher387), not automation.
 
+## Apps (connectors marketplace)
+
+The **APPS** panel is a registry of sources you install and combine:
+
+- **Built-in connectors** (GitHub, Keybase, Gravatar, WhatsMyName, avatar pHash, …) are **toggles**: turning one on/off actually changes what the scan runs. Enable more → more sources feed the **same correlation engine** (shared entity model, cross-signals like matching avatars and declared links) → a richer, more cross-linked result. The enabled set is sent to `/api/scan?connectors=…` and persisted in the browser.
+- **Manual pivots** (the cipher387 catalogue: Epieos, Sherlock, PimEyes, Shodan, IntelX, …) can be **added**; once added they **open pre-filled with the current seed** (`{seed}` substituted in the tool's URL) so the analyst can run them and paste findings back. Each is labeled `free / freemium / paid`.
+
+This is the "install an app → it adapts to the seed and correlates with the others" model: automated connectors plug straight into the pipeline, manual tools bridge what can't be automated (closed APIs / restrictive ToS).
+
 ## Persistence
 
 Investigations can be **saved and reloaded** (SAVE / CASES in the top bar). Storage is hybrid:

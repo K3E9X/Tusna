@@ -64,6 +64,7 @@ body {
 .cases-pop { position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: 240px;
   background: var(--panel); backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: 4px;
   padding: 6px; max-height: 320px; overflow-y: auto; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+.cases-head { font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); padding: 6px 9px 8px; border-bottom: 1px solid var(--line-soft); margin-bottom: 4px; }
 .cases-empty { font-size: 10px; letter-spacing: .1em; color: var(--ink-3); padding: 12px; text-align: center; }
 .case-row { display: flex; align-items: stretch; gap: 4px; }
 .case-open { flex: 1; text-align: left; background: transparent; border: 0; cursor: pointer; padding: 8px 9px; border-radius: 3px; font-family: var(--mono); }

@@ -1,6 +1,9 @@
-// Investigation persistence — client-side (localStorage). No backend required,
-// works on Vercel out of the box. Server-side / multi-device persistence would
-// use a hosted DB (Vercel Postgres / Neon) via an env var — a later step.
+// Investigation persistence — hybrid.
+//  - If a Postgres/Neon URL is configured on the server (POSTGRES_URL), cases are
+//    stored server-side via /api/cases (durable, multi-device).
+//  - Otherwise they fall back to the browser (localStorage) — zero config, works
+//    on Vercel immediately.
+// Cases can also be exported/imported as JSON files, independent of storage.
 
 import type { Signal } from "./signals";
 
@@ -14,36 +17,75 @@ export interface Case {
 }
 
 const KEY = "tusna:cases:v1";
+let backend: "server" | "local" | null = null;
 
-function read(): Case[] {
+/** Which backend is in use (null until the first listCases probe). */
+export function backendMode(): "server" | "local" | null {
+  return backend;
+}
+
+function readLocal(): Case[] {
   if (typeof window === "undefined") return [];
   try { return JSON.parse(window.localStorage.getItem(KEY) || "[]"); } catch { return []; }
 }
-function write(cases: Case[]): void {
+function writeLocal(cases: Case[]): void {
   if (typeof window === "undefined") return;
   try { window.localStorage.setItem(KEY, JSON.stringify(cases)); } catch { /* quota / disabled */ }
 }
 
-export function listCases(): Case[] {
-  return read().sort((a, b) => b.savedAt - a.savedAt);
+function newId(): string {
+  return "case_" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
 }
 
-export function saveCase(name: string, seed: string, mode: string, signals: Signal[]): Case {
-  const cases = read();
-  const c: Case = {
-    id: "case_" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36),
-    name: name || seed || "case",
-    seed, mode, savedAt: Date.now(), signals,
-  };
-  cases.push(c);
-  write(cases);
+export async function listCases(): Promise<Case[]> {
+  try {
+    const res = await fetch("/api/cases", { cache: "no-store" });
+    const data = await res.json();
+    if (res.ok && data.configured) { backend = "server"; return data.cases || []; }
+  } catch { /* fall back */ }
+  backend = "local";
+  return readLocal().sort((a, b) => b.savedAt - a.savedAt);
+}
+
+export async function saveCase(name: string, seed: string, caseMode: string, signals: Signal[]): Promise<Case> {
+  const c: Case = { id: newId(), name: name || seed || "case", seed, mode: caseMode, savedAt: Date.now(), signals };
+  if (backend !== "local") {
+    try {
+      const res = await fetch("/api/cases", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(c),
+      });
+      const data = await res.json();
+      if (res.ok && data.configured) { backend = "server"; return c; }
+    } catch { /* fall back */ }
+  }
+  backend = "local";
+  const cases = readLocal(); cases.push(c); writeLocal(cases);
   return c;
 }
 
-export function removeCase(id: string): void {
-  write(read().filter((c) => c.id !== id));
+export async function removeCase(id: string): Promise<void> {
+  if (backend !== "local") {
+    try {
+      const res = await fetch(`/api/cases?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok && data.configured) return;
+    } catch { /* fall back */ }
+  }
+  writeLocal(readLocal().filter((c) => c.id !== id));
 }
 
-export function loadCase(id: string): Case | null {
-  return read().find((c) => c.id === id) || null;
+/** Serialize a case for file export. */
+export function caseToJSON(c: Case): string {
+  return JSON.stringify(c, null, 2);
+}
+
+/** Parse an imported case file; returns null if it isn't a valid case. */
+export function parseCase(text: string): Case | null {
+  try {
+    const c = JSON.parse(text);
+    if (c && typeof c.seed === "string" && Array.isArray(c.signals)) {
+      return { id: c.id || newId(), name: c.name || c.seed, seed: c.seed, mode: c.mode || "", savedAt: c.savedAt || Date.now(), signals: c.signals };
+    }
+  } catch { /* invalid */ }
+  return null;
 }

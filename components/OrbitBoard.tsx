@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SIGNALS, SEED, BANDS, BAND_ORDER, type Signal, type Status } from "@/lib/signals";
-import { listCases, saveCase, removeCase, loadCase, type Case } from "@/lib/cases";
+import { listCases, saveCase, removeCase, caseToJSON, parseCase, backendMode, type Case } from "@/lib/cases";
 
 interface WorkNode extends Signal {
   x: number; y: number; vx: number; vy: number; op: number; a: number;
@@ -26,8 +26,11 @@ export default function OrbitBoard() {
   const [scanMsg, setScanMsg] = useState<string | null>(null);
   const [cases, setCases] = useState<Case[]>([]);
   const [casesOpen, setCasesOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setCases(listCases()); }, []);
+  useEffect(() => { listCases().then(setCases).catch(() => {}); }, []);
+
+  function flashMsg(m: string) { setScanMsg(m); setTimeout(() => setScanMsg(null), 3000); }
 
   useEffect(() => { seedRef.current = seed; }, [seed]);
   useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
@@ -246,29 +249,52 @@ export default function OrbitBoard() {
     });
   }
 
-  function saveCurrent() {
+  async function saveCurrent() {
     const sigs = currentSignals();
     if (!sigs.length) return;
     const s = seedRef.current.trim() || "case";
-    saveCase(s, s, s.includes("@") ? "email" : "username", sigs);
-    setCases(listCases());
-    setScanMsg("case saved");
-    setTimeout(() => setScanMsg(null), 3000);
+    await saveCase(s, s, s.includes("@") ? "email" : "username", sigs);
+    setCases(await listCases());
+    flashMsg(backendMode() === "server" ? "case saved (server)" : "case saved (local)");
   }
 
-  function openCase(id: string) {
-    const c = loadCase(id);
-    if (!c) return;
+  function openCase(c: Case) {
     setSeed(c.seed);
     rebuildRef.current(c.signals, true);
     setCasesOpen(false);
-    setScanMsg(`loaded "${c.name}"`);
-    setTimeout(() => setScanMsg(null), 3000);
+    flashMsg(`loaded "${c.name}"`);
   }
 
-  function deleteCase(id: string) {
-    removeCase(id);
-    setCases(listCases());
+  async function deleteCase(id: string) {
+    await removeCase(id);
+    setCases(await listCases());
+  }
+
+  function exportCurrent() {
+    const sigs = currentSignals();
+    if (!sigs.length) return;
+    const s = seedRef.current.trim() || "case";
+    const c: Case = { id: "export", name: s, seed: s, mode: s.includes("@") ? "email" : "username", savedAt: Date.now(), signals: sigs };
+    const blob = new Blob([caseToJSON(c)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `tusna-case-${s.replace(/[^\w.@-]/g, "_")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    flashMsg("case exported");
+  }
+
+  async function importFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    const text = await f.text();
+    const c = parseCase(text);
+    if (!c) { flashMsg("invalid case file"); return; }
+    setSeed(c.seed);
+    rebuildRef.current(c.signals, true);
+    setCasesOpen(false);
+    flashMsg(`imported "${c.name}"`);
   }
 
   return (
@@ -296,16 +322,20 @@ export default function OrbitBoard() {
           <span><b style={{ color: "var(--confirm)" }}>{confirmedCount}</b> confirmed</span>
           <button className="btn" onClick={runScan} disabled={scanning}>{scanning ? "…" : "↻ SCAN"}</button>
           <button className="btn" onClick={saveCurrent}>SAVE</button>
+          <button className="btn" onClick={exportCurrent}>EXPORT</button>
+          <button className="btn" onClick={() => fileRef.current?.click()}>IMPORT</button>
+          <input ref={fileRef} type="file" accept="application/json,.json" onChange={importFile} style={{ display: "none" }} />
           <div className="cases-wrap">
-            <button className="btn" onClick={() => { setCases(listCases()); setCasesOpen((o) => !o); }}>
+            <button className="btn" onClick={async () => { setCases(await listCases()); setCasesOpen((o) => !o); }}>
               CASES{cases.length ? ` (${cases.length})` : ""}
             </button>
             {casesOpen && (
               <div className="cases-pop">
+                <div className="cases-head">stored: {backendMode() || "…"}</div>
                 {cases.length === 0 && <div className="cases-empty">no saved case</div>}
                 {cases.map((c) => (
                   <div className="case-row" key={c.id}>
-                    <button className="case-open" onClick={() => openCase(c.id)}>
+                    <button className="case-open" onClick={() => openCase(c)}>
                       <span className="case-name">{c.name}</span>
                       <span className="case-meta">{c.signals.length} signals · {new Date(c.savedAt).toLocaleDateString()}</span>
                     </button>

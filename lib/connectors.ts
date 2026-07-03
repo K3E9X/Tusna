@@ -27,6 +27,8 @@ export interface RawProfile {
   links?: ProfileLink[];
   /** true when existence is inferred by URL pattern (WhatsMyName), not an official API */
   unverified?: boolean;
+  /** true when the account was found via a handle derived from an email (weaker person-link) */
+  derived?: boolean;
   /** short provenance, e.g. "api.github.com · API publique" */
   source: string;
 }

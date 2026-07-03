@@ -48,7 +48,11 @@ docs/           # architecture.md, osint-tools-research.md, llm-correlation.md
 
 ## Connecteurs actuels (scan réel)
 
-Le bouton **SCANNER** interroge en parallèle **13 APIs publiques officielles** (aucune clé, aucun scraping, CGU respectées) : GitHub, GitLab, Reddit, Hacker News, **Keybase**, **Gravatar**, Bluesky, Mastodon, Chess.com, Codeforces, npm, Docker Hub, Wikipedia. Keybase et Gravatar remontent en plus les **comptes liés déclarés** (cross-links vérifiés) — un signal fort de corrélation.
+La graine accepte un **pseudo ou un email**.
+
+**Mode pseudo** — le bouton **SCANNER** interroge en parallèle **13 APIs publiques officielles** (aucune clé, aucun scraping, CGU respectées) : GitHub, GitLab, Reddit, Hacker News, **Keybase**, **Gravatar**, Bluesky, Mastodon, Chess.com, Codeforces, npm, Docker Hub, Wikipedia. Keybase et Gravatar remontent en plus les **comptes liés déclarés** (cross-links vérifiés) — un signal fort de corrélation.
+
+**Mode email** — `email → comptes`, sans clé : (1) **Gravatar par hash** (MD5/SHA256) → profil vérifié + comptes liés déclarés (l'ancre) ; (2) **handle dérivé** de la partie locale (normalisation gmail points/tags) relancé sur toutes les sources, marqué **« dérivé (inférence) »** et scoré plus bas — le lien à la personne reste à confirmer ; (3) **validation MX** du domaine.
 
 **Couche large — WhatsMyName.** En plus des 13 APIs, le scan interroge le **dataset officiel WhatsMyName** (600+ sites, chargé à l'exécution depuis le dépôt maintenu). Ces présences sont détectées par **motif d'URL** : elles sont explicitement marquées **« non vérifiées »**, scorées bas et placées en orbite froide — l'humain confirme. Cela élargit la couverture **sans fabriquer de faux positifs**. Le nombre de sites testés par scan est plafonné (`?depth=`, défaut 100, pour tenir dans la limite de temps d'une fonction serverless) et la réponse expose `coverage.capped` — **jamais de troncature silencieuse**.
 

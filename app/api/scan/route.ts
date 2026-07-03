@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { scanUsername, type RawProfile } from "@/lib/connectors";
 import { scanWmn } from "@/lib/wmn";
+import { scanEmail } from "@/lib/email";
 import { dHashFromUrl, avatarMatch } from "@/lib/phash";
 import type { Signal, Evidence, Status } from "@/lib/signals";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Compute perceptual hashes for profiles that expose an avatar (bounded, graceful). */
 async function enrichAvatars(profiles: RawProfile[], max = 14): Promise<void> {
@@ -30,13 +33,13 @@ function clamp(n: number, lo: number, hi: number): number {
  * Confidence reflects "how strongly this account ties to the seed" — computed
  * only from observed facts. No account is auto-confirmed; a human decides.
  */
-function correlate(seed: string, profiles: RawProfile[]): Signal[] {
-  const seedN = norm(seed);
+function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
+  const seedN = norm(matchTarget);
   return profiles.map((p) => {
     const evidence: Evidence[] = [];
     const handleN = norm(p.handle.replace(/^u\//, ""));
 
-    // exact / near username match against the seed
+    // exact / near username match against the target (username, or email-derived handle)
     const exact = handleN === seedN;
     if (p.unverified) {
       evidence.push({
@@ -45,10 +48,17 @@ function correlate(seed: string, profiles: RawProfile[]): Signal[] {
         source: p.source,
         weight: 45,
       });
+    } else if (p.derived) {
+      evidence.push({
+        name: "Handle dérivé de l'email",
+        detail: `${p.handle} obtenu en dérivant le handle de l'email — compte public existant, lien à la personne à confirmer.`,
+        source: p.source,
+        weight: 50,
+      });
     } else {
       evidence.push({
         name: exact ? "Username exact" : "Username proche",
-        detail: `${p.handle} ${exact ? "≡" : "≈"} graine « ${seed} », compte public existant.`,
+        detail: `${p.handle} ${exact ? "≡" : "≈"} cible « ${matchTarget} », compte public existant.`,
         source: p.source,
         weight: exact ? 74 : 58,
       });
@@ -94,7 +104,8 @@ function correlate(seed: string, profiles: RawProfile[]): Signal[] {
       }
     }
 
-    let confidence = (p.unverified ? (exact ? 42 : 32) : (exact ? 62 : 46)) + crossBoost;
+    const base = p.unverified ? (exact ? 42 : 32) : p.derived ? (exact ? 48 : 38) : (exact ? 62 : 46);
+    let confidence = base + crossBoost;
     if (p.displayName) confidence += 6;
     if (p.bio) confidence += 5;
     if (p.avatar) confidence += 5;
@@ -115,33 +126,56 @@ function correlate(seed: string, profiles: RawProfile[]): Signal[] {
 }
 
 export async function GET(req: NextRequest) {
-  const username = (req.nextUrl.searchParams.get("username") || "").trim();
+  const q = (req.nextUrl.searchParams.get("username") || "").trim();
   const depth = clamp(parseInt(req.nextUrl.searchParams.get("depth") || "100", 10) || 100, 1, 250);
-  if (!username || username.length > 64 || /[^\w.\-@]/.test(username)) {
-    return NextResponse.json({ error: "username invalide" }, { status: 400 });
+  if (!q || q.length > 128) {
+    return NextResponse.json({ error: "entrée invalide" }, { status: 400 });
+  }
+  const isEmail = EMAIL_RE.test(q);
+  if (!isEmail && /[^\w.\-@]/.test(q)) {
+    return NextResponse.json({ error: "pseudo invalide" }, { status: 400 });
   }
   try {
-    // official APIs (rich, verified) + WhatsMyName ruleset (broad, unverified) in parallel
-    const [apiProfiles, wmn] = await Promise.all([
-      scanUsername(username),
-      scanWmn(username, depth),
-    ]);
-    // dedupe: prefer the richer API profile when a platform appears in both
+    let apiProfiles: RawProfile[];
+    let wmnHits: RawProfile[];
+    let checked = 0, totalSites = 0;
+    let matchTarget = q;
+    let email: { handle: string; mxValid: boolean } | undefined;
+
+    if (isEmail) {
+      const r = await scanEmail(q, depth);
+      apiProfiles = r.profiles;
+      wmnHits = r.wmnHits;
+      checked = r.wmnChecked; totalSites = r.wmnTotal;
+      matchTarget = r.handle || q;
+      email = { handle: r.handle, mxValid: r.mxValid };
+    } else {
+      const [api, wmn] = await Promise.all([scanUsername(q), scanWmn(q, depth)]);
+      apiProfiles = api; wmnHits = wmn.hits;
+      checked = wmn.checked; totalSites = wmn.total;
+    }
+
+    // dedupe: prefer the richer API profile per platform, then drop duplicate ids
     const seen = new Set(apiProfiles.map((p) => norm(p.platform)));
-    const merged = [...apiProfiles, ...wmn.hits.filter((w) => !seen.has(norm(w.platform)))];
+    const mergedRaw = [...apiProfiles, ...wmnHits.filter((w) => !seen.has(norm(w.platform)))];
+    const byId = new Map<string, RawProfile>();
+    for (const p of mergedRaw) if (!byId.has(p.id)) byId.set(p.id, p);
+    const merged = [...byId.values()];
 
     // link accounts by avatar (perceptual hash) before scoring
     await enrichAvatars(merged);
 
-    const signals = correlate(username, merged);
+    const signals = correlate(matchTarget, merged);
     signals.sort((a, b) => b.confidence - a.confidence);
     return NextResponse.json({
-      seed: username,
+      seed: q,
+      mode: isEmail ? "email" : "username",
       count: signals.length,
       signals,
-      sources: { api: apiProfiles.length, web: wmn.hits.length },
+      email,
+      sources: { api: apiProfiles.length, web: wmnHits.length },
       // coverage transparency — never silently truncate
-      coverage: { checked: wmn.checked, available: wmn.total, capped: wmn.checked < wmn.total },
+      coverage: { checked, available: totalSites, capped: checked < totalSites },
     });
   } catch (e) {
     return NextResponse.json({ error: "scan échoué", detail: String(e) }, { status: 500 });

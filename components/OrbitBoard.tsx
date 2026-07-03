@@ -248,7 +248,7 @@ export default function OrbitBoard() {
           <div className="l" key={k}><span className="tick" />{BANDS[k].label}</div>
         ))}
       </div>
-      <div className="hint">SCANNER&nbsp;· scan réel sur 13 APIs publiques (GitHub, Keybase, Gravatar, Bluesky, Mastodon…)&nbsp;&nbsp;/&nbsp;&nbsp;clic&nbsp;· preuves&nbsp;&nbsp;/&nbsp;&nbsp;glisser&nbsp;· tirer un corps</div>
+      <div className="hint">graine&nbsp;· pseudo <b>ou email</b>&nbsp;&nbsp;/&nbsp;&nbsp;SCANNER&nbsp;· 13 APIs + WhatsMyName + pHash d&apos;avatars&nbsp;&nbsp;/&nbsp;&nbsp;clic&nbsp;· preuves&nbsp;&nbsp;/&nbsp;&nbsp;glisser&nbsp;· tirer un corps</div>
 
       <aside className={"inspector" + (selected ? " open" : "")} aria-hidden={!selected}>
         {selected && (

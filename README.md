@@ -63,7 +63,12 @@ Deliberately **excluded** from automated connectors: Instagram, X/Twitter, Faceb
 
 ## Persistence
 
-Investigations can be **saved and reloaded** (SAVE / CASES in the top bar), stored in the browser (`localStorage`) — no backend, works on Vercel immediately. Server-side / multi-device persistence would use a hosted DB (Vercel Postgres / Neon) via an env var — a later step.
+Investigations can be **saved and reloaded** (SAVE / CASES in the top bar). Storage is hybrid:
+
+- **No config → browser (`localStorage`)**: zero setup, works on Vercel immediately. Single-browser.
+- **With a Postgres/Neon URL → server-side**: durable, multi-device. Set one of `POSTGRES_URL` / `DATABASE_URL` / `NEON_DATABASE_URL` as a Vercel env var (e.g. create a free Neon database from the Vercel Marketplace and copy its connection string). The `tusna_cases` table is created automatically on first use. The CASES panel shows which backend is active (`stored: server` / `local`).
+
+Cases can also be **exported and imported as JSON files** (EXPORT / IMPORT), independent of storage — the simplest way to move a case between machines or back it up.
 
 ## Art direction
 

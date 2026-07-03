@@ -40,10 +40,17 @@ Aucune variable d'environnement n'est requise à ce stade (données simulées). 
 
 ```
 app/            # Next.js App Router (layout, page, styles globaux)
+  api/scan/     # route serveur : scan réel + scoring sourcé
 components/     # OrbitBoard.tsx — la vue Orbit (canvas + physique à ressorts)
-lib/            # signals.ts — modèle de données de corrélation (typé)
+lib/            # signals.ts (modèle typé) · connectors.ts (13 APIs publiques)
 docs/           # architecture.md, osint-tools-research.md, llm-correlation.md
 ```
+
+## Connecteurs actuels (scan réel)
+
+Le bouton **SCANNER** interroge en parallèle **13 APIs publiques officielles** (aucune clé, aucun scraping, CGU respectées) : GitHub, GitLab, Reddit, Hacker News, **Keybase**, **Gravatar**, Bluesky, Mastodon, Chess.com, Codeforces, npm, Docker Hub, Wikipedia. Keybase et Gravatar remontent en plus les **comptes liés déclarés** (cross-links vérifiés) — un signal fort de corrélation.
+
+Volontairement **exclus** des connecteurs auto : Instagram, X/Twitter, Facebook, LinkedIn, TikTok (API fermées / CGU restrictives) — ils relèvent des **pivots manuels** (catalogue cipher387), pas de l'automatisation. Passer à des *centaines* de sites suppose d'intégrer le dataset **WhatsMyName** / un wrapper **Maigret** — étape suivante.
 
 ## Direction artistique
 

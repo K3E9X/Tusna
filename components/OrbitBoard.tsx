@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SIGNALS, SEED, BANDS, BAND_ORDER, type Signal, type Status } from "@/lib/signals";
 
 interface WorkNode extends Signal {
@@ -15,17 +15,24 @@ export default function OrbitBoard() {
   const nodesRef = useRef<WorkNode[]>([]);
   const elsRef = useRef<Record<string, HTMLDivElement>>({});
   const draggingRef = useRef<WorkNode | null>(null);
+  const metaRef = useRef({ cx: 0, cy: 0 });
+  const rebuildRef = useRef<(sigs: Signal[], spawn?: boolean) => void>(() => {});
 
   const [seed, setSeed] = useState(SEED);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [, setTick] = useState(0);
+  const [dataVersion, setDataVersion] = useState(0);
+  const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState<string | null>(null);
 
   useEffect(() => { seedRef.current = seed; }, [seed]);
   useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
 
-  const selected = selectedId ? nodesRef.current.find((n) => n.id === selectedId) ?? null : null;
+  const selected = useMemo(
+    () => (selectedId ? nodesRef.current.find((n) => n.id === selectedId) ?? null : null),
+    [selectedId, dataVersion],
+  );
+  const total = nodesRef.current.length;
   const confirmedCount = nodesRef.current.filter((n) => n.status === "confirmed").length;
-  const total = SIGNALS.length;
 
   useEffect(() => {
     const cv = canvasRef.current!;
@@ -34,15 +41,6 @@ export default function OrbitBoard() {
     const DPR = Math.min(2, window.devicePixelRatio || 1);
     let W = 0, H = 0, cx = 0, cy = 0, baseR = 1, raf = 0;
 
-    // working copy with physics fields
-    const nodes: WorkNode[] = SIGNALS.map((s, i) => {
-      const a = -Math.PI / 2 + i * ((2 * Math.PI) / SIGNALS.length);
-      return { ...s, a, x: 0, y: 0, vx: 0, vy: 0, op: 1 };
-    });
-    nodesRef.current = nodes;
-    elsRef.current = {};
-
-    // css var reader (re-cached on theme change)
     let root = getComputedStyle(document.documentElement);
     let cache: Record<string, string> = {};
     const cssv = (n: string) => (cache[n] ??= root.getPropertyValue(n).trim());
@@ -55,6 +53,7 @@ export default function OrbitBoard() {
       cv.width = W * DPR; cv.height = H * DPR; cv.style.width = W + "px"; cv.style.height = H + "px";
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       cx = W / 2; cy = H / 2 + 10; baseR = Math.min(W, H);
+      metaRef.current = { cx, cy };
     }
 
     function targetRadius(d: WorkNode) {
@@ -64,53 +63,57 @@ export default function OrbitBoard() {
       return lo + (hi - lo) * t;
     }
 
-    // build body DOM nodes
-    bodiesEl.innerHTML = "";
-    nodes.forEach((d, i) => {
-      const a = d.a;
-      d.x = cx + Math.cos(a) * 300; d.y = cy + Math.sin(a) * 300;
-      const el = document.createElement("div");
-      el.className = "body";
-      el.innerHTML =
-        `<div class="disc">${d.disc}</div><div class="tag">${d.handle}</div><div class="conf">${d.confidence}%</div>`;
-      bodiesEl.appendChild(el);
-      elsRef.current[d.id] = el;
-      attachDrag(el, d);
-      let moved = false;
+    function attachDrag(el: HTMLDivElement, d: WorkNode) {
+      let ox = 0, oy = 0, px = 0, py = 0, active = false, pid = 0, moved = false;
+      el.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        active = true; draggingRef.current = d; moved = false;
+        el.classList.add("drag"); pid = e.pointerId; el.setPointerCapture(pid);
+        ox = e.clientX; oy = e.clientY; px = d.x; py = d.y; d.vx = 0; d.vy = 0; e.preventDefault();
+      });
+      el.addEventListener("pointermove", (e) => {
+        if (!active) return;
+        const mx = e.clientX - ox, my = e.clientY - oy;
+        if (Math.abs(mx) + Math.abs(my) > 3) moved = true;
+        d.x = px + mx; d.y = py + my;
+      });
+      const end = () => { if (!active) return; active = false; el.classList.remove("drag"); draggingRef.current = null; setTimeout(() => { moved = false; }, 40); };
+      el.addEventListener("pointerup", end);
+      el.addEventListener("pointercancel", end);
       el.addEventListener("click", () => { if (!moved) setSelectedId(d.id); });
+    }
 
-      // drag
-      function attachDrag(el: HTMLDivElement, d: WorkNode) {
-        let ox = 0, oy = 0, px = 0, py = 0, active = false, pid = 0;
-        el.addEventListener("pointerdown", (e) => {
-          if (e.button !== 0) return;
-          active = true; draggingRef.current = d; moved = false;
-          el.classList.add("drag"); pid = e.pointerId; el.setPointerCapture(pid);
-          ox = e.clientX; oy = e.clientY; px = d.x; py = d.y; d.vx = 0; d.vy = 0; e.preventDefault();
-        });
-        el.addEventListener("pointermove", (e) => {
-          if (!active) return;
-          const mx = e.clientX - ox, my = e.clientY - oy;
-          if (Math.abs(mx) + Math.abs(my) > 3) moved = true;
-          d.x = px + mx; d.y = py + my;
-        });
-        const end = () => {
-          if (!active) return; active = false; el.classList.remove("drag"); draggingRef.current = null;
-          setTimeout(() => { moved = false; }, 40);
-        };
-        el.addEventListener("pointerup", end);
-        el.addEventListener("pointercancel", end);
-      }
-    });
+    function rebuild(sigs: Signal[], spawn = false) {
+      const nodes: WorkNode[] = sigs.map((s, i) => {
+        const a = -Math.PI / 2 + i * ((2 * Math.PI) / Math.max(1, sigs.length));
+        const edge = spawn ? Math.max(W, H) * 0.7 : 300;
+        return { ...s, a, x: cx + Math.cos(a) * edge, y: cy + Math.sin(a) * edge, vx: 0, vy: 0, op: spawn ? 0 : 1 };
+      });
+      nodesRef.current = nodes;
+      elsRef.current = {};
+      bodiesEl.innerHTML = "";
+      nodes.forEach((d, i) => {
+        const el = document.createElement("div");
+        el.className = "body";
+        el.innerHTML = `<div class="disc">${d.disc}</div><div class="tag">${escapeHtml(d.handle)}</div><div class="conf">${d.confidence}%</div>`;
+        bodiesEl.appendChild(el);
+        elsRef.current[d.id] = el;
+        attachDrag(el, d);
+        if (spawn) setTimeout(() => { const a = Math.random() * Math.PI * 2; const edge = Math.max(W, H) * 0.7; d.x = cx + Math.cos(a) * edge; d.y = cy + Math.sin(a) * edge; d.op = 0; }, i * 110);
+      });
+      setSelectedId(null);
+      setDataVersion((v) => v + 1);
+    }
+    rebuildRef.current = rebuild;
 
     function step() {
+      const nodes = nodesRef.current;
       const K_RAD = 0.02, K_REP = 1400, DAMP = 0.86;
       for (let i = 0; i < nodes.length; i++) {
         const d = nodes[i];
         if (d === draggingRef.current) continue;
         const dx = d.x - cx, dy = d.y - cy, dist = Math.hypot(dx, dy) || 0.001;
-        const tR = targetRadius(d);
-        const f = (tR - dist) * K_RAD;
+        const f = (targetRadius(d) - dist) * K_RAD;
         let fx = (dx / dist) * f, fy = (dy / dist) * f;
         for (let j = 0; j < nodes.length; j++) {
           if (i === j) continue;
@@ -129,16 +132,15 @@ export default function OrbitBoard() {
     }
 
     function draw() {
+      const nodes = nodesRef.current;
       ctx.clearRect(0, 0, W, H);
       const selId = selectedRef.current;
-      // band rings
       BAND_ORDER.forEach((k) => {
         const b = BANDS[k];
         const rMid = ((b.r0 + b.r1) / 2) * baseR * 0.5;
         ctx.beginPath(); ctx.arc(cx, cy, rMid, 0, Math.PI * 2);
         ctx.strokeStyle = cssv("--line-soft"); ctx.lineWidth = 1; ctx.setLineDash([2, 7]); ctx.stroke(); ctx.setLineDash([]);
       });
-      // links
       nodes.forEach((d) => {
         let col: string, w: number, alpha: number;
         if (d.status === "confirmed") { col = cssv("--confirm"); w = 1.2; alpha = 0.55; }
@@ -155,7 +157,6 @@ export default function OrbitBoard() {
         ctx.stroke(); ctx.setLineDash([]);
       });
       ctx.globalAlpha = 1;
-      // core
       ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fillStyle = cssv("--accent"); ctx.fill();
       ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(cx, cy, 13, 0, Math.PI * 2); ctx.strokeStyle = cssv("--accent"); ctx.lineWidth = 1; ctx.stroke();
       ctx.globalAlpha = 0.12; ctx.beginPath(); ctx.arc(cx, cy, 26, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
@@ -163,7 +164,6 @@ export default function OrbitBoard() {
       ctx.fillText("GRAINE", cx, cy + 44);
       ctx.fillStyle = cssv("--accent"); ctx.font = "11px ui-monospace, monospace";
       ctx.fillText(seedRef.current || "—", cx, cy - 38);
-      // position bodies + classes
       nodes.forEach((d) => {
         const el = elsRef.current[d.id];
         if (!el) return;
@@ -174,7 +174,9 @@ export default function OrbitBoard() {
       });
     }
 
-    resize(); step();
+    resize();
+    rebuild(SIGNALS, false);
+    step();
     window.addEventListener("resize", resize);
     return () => {
       cancelAnimationFrame(raf);
@@ -184,24 +186,34 @@ export default function OrbitBoard() {
     };
   }, []);
 
+  function escapeHtml(s: string) {
+    return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
+  }
+
   function setStatus(id: string, status: Status) {
     const n = nodesRef.current.find((x) => x.id === id);
     if (!n) return;
     n.status = status;
-    setTick((t) => t + 1);
+    setDataVersion((v) => v + 1);
   }
 
-  function runScan() {
-    const nodes = nodesRef.current;
-    nodes.forEach((d, i) => {
-      setTimeout(() => {
-        const edge = Math.max(window.innerWidth, window.innerHeight) * 0.7;
-        const a = Math.random() * Math.PI * 2;
-        d.x = window.innerWidth / 2 + Math.cos(a) * edge;
-        d.y = window.innerHeight / 2 + 10 + Math.sin(a) * edge;
-        d.vx = 0; d.vy = 0; d.op = 0;
-      }, i * 120);
-    });
+  async function runScan() {
+    const u = seedRef.current.trim();
+    if (!u || scanning) return;
+    setScanning(true); setScanMsg("scan en cours…");
+    try {
+      const res = await fetch(`/api/scan?username=${encodeURIComponent(u)}`);
+      const data = await res.json();
+      if (!res.ok) { setScanMsg(data?.error || "scan échoué"); return; }
+      if (!data.signals?.length) { setScanMsg("aucune présence publique trouvée"); return; }
+      rebuildRef.current(data.signals, true);
+      setScanMsg(`${data.signals.length} présence(s) réelle(s)`);
+    } catch {
+      setScanMsg("réseau indisponible");
+    } finally {
+      setScanning(false);
+      setTimeout(() => setScanMsg(null), 4000);
+    }
   }
 
   return (
@@ -215,13 +227,19 @@ export default function OrbitBoard() {
         <div className="wordmark">TUSNA <small>ORBIT</small></div>
         <label className="seed-in">
           <span>graine</span>
-          <input value={seed} spellCheck={false} onChange={(e) => setSeed(e.target.value)} aria-label="graine" />
+          <input
+            value={seed} spellCheck={false}
+            onChange={(e) => setSeed(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") runScan(); }}
+            aria-label="graine"
+          />
         </label>
         <div className="flex" />
         <div className="readout">
+          {scanMsg && <span style={{ color: "var(--accent)" }}>{scanMsg}</span>}
           <span className="hide-sm"><span className="dotpulse" /><b>{total}</b> signaux</span>
           <span><b style={{ color: "var(--confirm)" }}>{confirmedCount}</b> confirmés</span>
-          <button className="btn" onClick={runScan}>↻ SCANNER</button>
+          <button className="btn" onClick={runScan} disabled={scanning}>{scanning ? "…" : "↻ SCANNER"}</button>
         </div>
       </div>
 
@@ -230,7 +248,7 @@ export default function OrbitBoard() {
           <div className="l" key={k}><span className="tick" />{BANDS[k].label}</div>
         ))}
       </div>
-      <div className="hint">clic&nbsp;· inspecter les preuves&nbsp;&nbsp;/&nbsp;&nbsp;glisser&nbsp;· tirer un corps (il replane en orbite)</div>
+      <div className="hint">SCANNER&nbsp;· scan réel sur 13 APIs publiques (GitHub, Keybase, Gravatar, Bluesky, Mastodon…)&nbsp;&nbsp;/&nbsp;&nbsp;clic&nbsp;· preuves&nbsp;&nbsp;/&nbsp;&nbsp;glisser&nbsp;· tirer un corps</div>
 
       <aside className={"inspector" + (selected ? " open" : "")} aria-hidden={!selected}>
         {selected && (

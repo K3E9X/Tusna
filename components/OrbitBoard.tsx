@@ -6,6 +6,7 @@ import { listCases, saveCase, removeCase, caseToJSON, parseCase, backendMode, ty
 import { BUILTIN_APPS, MANUAL_APPS, type AppDef } from "@/lib/registry";
 import { loadEnabled, saveEnabled } from "@/lib/apps";
 import { normId } from "@/lib/extract";
+import { buildDossier, type Dossier } from "@/lib/dossier";
 
 interface WorkNode extends Signal {
   x: number; y: number; vx: number; vy: number; op: number; a: number;
@@ -37,6 +38,7 @@ export default function OrbitBoard() {
   const [addForm, setAddForm] = useState<{ platform: string; handle: string; url: string; via: string } | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [dossier, setDossier] = useState<Dossier | null>(null);
 
   useEffect(() => { focusRef.current = focusId; }, [focusId]);
   const [enabled, setEnabled] = useState<Set<string>>(() => new Set(BUILTIN_APPS.map((a) => a.id)));
@@ -152,7 +154,7 @@ export default function OrbitBoard() {
       const el = document.createElement("div");
       el.className = "body";
       el.dataset.kind = d.kind || "platform";
-      const discContent = d.kind === "email" ? "✉" : d.kind === "alias" ? "~" : d.kind === "phone" ? "☎" : d.disc;
+      const discContent = d.kind === "email" ? "✉" : d.kind === "alias" ? "~" : d.kind === "phone" ? "☎" : d.kind === "location" ? "⌖" : d.kind === "leak" ? "⚠" : d.disc;
       el.innerHTML = `<div class="disc">${discContent}</div><div class="tag">${escapeHtml(d.handle)}</div><div class="conf">${d.confidence}%</div>`;
       bodiesEl.appendChild(el);
       elsRef.current[d.id] = el;
@@ -378,6 +380,28 @@ export default function OrbitBoard() {
     }
   }
 
+  function openDossier() {
+    setDossier(buildDossier(currentSignals()));
+  }
+
+  function dossierBlock(label: string, items: string[]) {
+    return (
+      <div className="dossier-block">
+        <div className="db-label">{label} ({items.length})</div>
+        {items.length === 0 ? <div className="db-empty">—</div> : items.map((v, i) => <div className="db-item" key={i}>{v}</div>)}
+      </div>
+    );
+  }
+
+  async function investigate() {
+    if (scanning) return;
+    await runScan();
+    // one automated expansion from a discovered identifier, then synthesize
+    const pivotable = nodesRef.current.find((n) => n.kind === "email" || n.kind === "alias");
+    if (pivotable) await autoExpand(pivotable);
+    setDossier(buildDossier(currentSignals()));
+  }
+
   async function pivotOn(node: Signal) {
     // pivot query: the email value, or the handle stripped of @ / u/
     const q = node.handle.replace(/^@/, "").replace(/^u\//, "").trim();
@@ -518,6 +542,8 @@ export default function OrbitBoard() {
           <span className="hide-sm"><span className="dotpulse" /><b>{total}</b> signals</span>
           <span><b style={{ color: "var(--confirm)" }}>{confirmedCount}</b> confirmed</span>
           <button className="btn" onClick={runScan} disabled={scanning}>{scanning ? "…" : "↻ SCAN"}</button>
+          <button className="btn btn-primary" onClick={investigate} disabled={scanning}>⚡ INVESTIGATE</button>
+          <button className="btn" onClick={openDossier}>▤ DOSSIER</button>
           <button className="btn" onClick={saveCurrent}>SAVE</button>
           <button className="btn" onClick={exportCurrent}>EXPORT</button>
           <button className="btn" onClick={() => fileRef.current?.click()}>IMPORT</button>
@@ -675,6 +701,50 @@ export default function OrbitBoard() {
 
       {focusId && (
         <button className="focus-chip" onClick={() => setFocusId(null)}>◍ focus active · clear</button>
+      )}
+
+      {dossier && (
+        <div className="add-overlay" onClick={() => setDossier(null)}>
+          <div className="dossier" onClick={(e) => e.stopPropagation()}>
+            <button className="insp-close" onClick={() => setDossier(null)} aria-label="close">✕</button>
+            <div className="insp-plat">DOSSIER · synthesized identity</div>
+            <div className="dossier-name">{dossier.name || "— name not established —"}</div>
+            {dossier.nameAlts.length > 0 && <div className="dossier-alts">also: {dossier.nameAlts.join(" · ")}</div>}
+            <div className="dossier-score">
+              <b>{dossier.identificationScore}</b><span>IDENTIFICATION<br />CONFIDENCE</span>
+              <span className="dossier-note">rule-based synthesis of verified nodes — no unsourced inference</span>
+            </div>
+            <div className="dossier-grid">
+              {dossierBlock("EMAILS", dossier.emails)}
+              {dossierBlock("PHONES", dossier.phones)}
+              {dossierBlock("LOCATIONS", dossier.locations)}
+              {dossierBlock("ALIASES", dossier.aliases)}
+            </div>
+            <div className="sect">ACCOUNTS ({dossier.accounts.length})</div>
+            <div className="dossier-accts">
+              {dossier.accounts.length === 0 && <div className="dossier-empty">no accounts yet — run a scan / investigate</div>}
+              {dossier.accounts.map((a, i) => (
+                <div className="dossier-acct" key={i}>
+                  <span className={"dossier-dot s-" + a.status} />
+                  <span className="da-plat">{a.platform}</span>
+                  <span className="da-handle">{a.handle}</span>
+                  <span className="da-conf">{a.confidence}%</span>
+                  {a.url && <a className="da-open" href={a.url} target="_blank" rel="noopener noreferrer">↗</a>}
+                </div>
+              ))}
+            </div>
+            {dossier.leaks.length > 0 && (
+              <>
+                <div className="sect">LEAKS ({dossier.leaks.length})</div>
+                <div className="dossier-accts">
+                  {dossier.leaks.map((l, i) => (
+                    <div className="dossier-acct" key={i}><span className="da-plat">{l.platform}</span><span className="da-handle">{l.handle}</span></div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </>
   );

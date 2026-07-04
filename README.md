@@ -83,6 +83,18 @@ This is the "install an app → it adapts to the seed and correlates with the ot
 
 **Closing the manual loop.** When a manual pivot surfaces a finding, add it to the board: `+ result` on an installed pivot (or the `+ NODE` button) opens a small form (platform, handle, url) and drops a new body into the live orbit, tied to the seed and marked "added manually — to confirm". It then behaves like any other node (confirm / review / reject, save with the case). So a manual tool's output re-enters the same correlated view instead of living in a separate tab.
 
+## Intelligence layer — the DOSSIER
+
+Finding nodes isn't the point; *identifying the person* is. The **DOSSIER** consolidates the whole correlated graph into one synthesized identity:
+
+- **Likely name** (the most-corroborated display name across confirmed/high accounts), **emails**, **phones**, **locations** (from GitHub/Gravatar location fields + Maigret), **aliases**, **accounts** (confirmed first), and **leaks** (IntelX).
+- An **identification confidence** score from cross-type corroboration (a name + an email + a phone + a location + confirmed accounts scores high).
+- Pure & deterministic — it only consolidates **verified nodes**, it invents nothing (no unsourced LLM inference).
+
+**⚡ INVESTIGATE** runs it end-to-end in one click: scan the seed → auto-expand one hop from a discovered identifier → open the synthesized dossier. **▤ DOSSIER** opens the synthesis for the current board at any time.
+
+**Breach search (IntelX).** Set `INTELX_API_KEY` (freemium) on Vercel to enable the **Intelligence X** app — a scan then also searches leaks/pastes/darkweb for the identifier and adds ⚠ leak nodes (sensitive: use under a legal basis; credentials are never redistributed).
+
 ## Persistence
 
 Investigations can be **saved and reloaded** (SAVE / CASES in the top bar). Storage is hybrid:

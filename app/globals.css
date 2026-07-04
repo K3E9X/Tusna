@@ -14,6 +14,8 @@
   --type-email: #D6B98F;
   --type-alias: #B3A6D6;
   --type-phone: #8FC7A0;
+  --type-location: #8FB4D6;
+  --type-leak: #D69090;
   --panel: rgba(18, 18, 22, .72);
   --mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -108,6 +110,35 @@ body {
 .focus-chip { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 25; background: var(--panel); backdrop-filter: blur(10px);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); font-family: var(--mono); font-size: 10px; letter-spacing: .12em; padding: 8px 14px; border-radius: 20px; cursor: pointer; }
 
+.btn.btn-primary { border-color: var(--accent); color: var(--accent); }
+.btn.btn-primary:hover { background: var(--accent-dim); }
+
+/* ---- dossier ---- */
+.dossier { width: min(560px, 92vw); max-height: 86vh; overflow-y: auto; position: relative;
+  background: var(--panel); backdrop-filter: blur(16px); border: 1px solid var(--accent); border-radius: 6px;
+  padding: 24px; box-shadow: 0 24px 70px rgba(0,0,0,.55); }
+.dossier-name { font-size: 26px; color: var(--ink); margin-top: 8px; letter-spacing: .01em; }
+.dossier-alts { font-size: 11px; color: var(--ink-3); margin-top: 4px; }
+.dossier-score { display: flex; align-items: baseline; gap: 12px; margin: 22px 0 6px; flex-wrap: wrap; }
+.dossier-score b { font-size: 40px; font-weight: 400; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1; }
+.dossier-score > span { font-size: 9.5px; letter-spacing: .16em; color: var(--ink-3); }
+.dossier-note { flex-basis: 100%; font-size: 9.5px; letter-spacing: .04em; color: var(--ink-4); margin-top: 4px; }
+.dossier-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+.dossier-block { border: 1px solid var(--line-soft); border-radius: 5px; padding: 10px 12px; min-height: 54px; }
+.db-label { font-size: 9px; letter-spacing: .14em; color: var(--ink-3); margin-bottom: 6px; }
+.db-item { font-size: 12px; color: var(--ink); word-break: break-all; line-height: 1.5; }
+.db-empty { font-size: 12px; color: var(--ink-4); }
+.dossier-accts { display: flex; flex-direction: column; gap: 2px; }
+.dossier-acct { display: flex; align-items: center; gap: 9px; padding: 6px 2px; border-bottom: 1px solid var(--line-soft); }
+.dossier-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--ink-3); }
+.dossier-dot.s-confirmed { background: var(--confirm); }
+.dossier-dot.s-review { background: var(--accent); }
+.da-plat { font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); width: 90px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.da-handle { font-size: 12px; color: var(--ink); flex: 1; word-break: break-all; }
+.da-conf { font-family: var(--mono); font-size: 11px; color: var(--ink-2); flex: none; }
+.da-open { color: var(--accent); text-decoration: none; flex: none; }
+.dossier-empty { font-size: 11px; color: var(--ink-4); padding: 8px 0; }
+
 .add-overlay { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.45); display: grid; place-items: center; }
 .add-card { width: 320px; background: var(--panel); backdrop-filter: blur(16px); border: 1px solid var(--accent); border-radius: 6px; padding: 20px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
 .add-title { font-size: 10px; letter-spacing: .24em; color: var(--ink-3); margin-bottom: 16px; }
@@ -138,6 +169,8 @@ body {
 .body[data-kind="email"] .disc { border-color: color-mix(in srgb, var(--type-email) 55%, transparent); color: var(--type-email); border-style: dashed; }
 .body[data-kind="alias"] .disc { border-color: color-mix(in srgb, var(--type-alias) 55%, transparent); color: var(--type-alias); }
 .body[data-kind="phone"] .disc { border-color: color-mix(in srgb, var(--type-phone) 55%, transparent); color: var(--type-phone); }
+.body[data-kind="location"] .disc { border-color: color-mix(in srgb, var(--type-location) 55%, transparent); color: var(--type-location); }
+.body[data-kind="leak"] .disc { border-color: color-mix(in srgb, var(--type-leak) 55%, transparent); color: var(--type-leak); border-style: dashed; }
 .body.confirmed .disc { border-color: color-mix(in srgb, var(--confirm) 70%, transparent); color: var(--confirm); }
 .body.rejected { opacity: .32; }
 .body.rejected .disc { border-style: dashed; }

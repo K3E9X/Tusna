@@ -5,6 +5,7 @@ import { scanEmail } from "@/lib/email";
 import { dHashFromUrl, avatarMatch } from "@/lib/phash";
 import { extractFromText, normId } from "@/lib/extract";
 import { collect, collectorEnabled } from "@/lib/collector";
+import { searchIntelX, intelxEnabled } from "@/lib/intelx";
 import { looksLikePhone, phoneIntel, type PhoneIntel } from "@/lib/phone";
 import type { Signal, Evidence, Status } from "@/lib/signals";
 
@@ -174,6 +175,7 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
       handle: p.handle,
       disc: p.disc,
       url: p.url || undefined,
+      displayName: p.displayName || undefined,
       confidence,
       status,
       evidence,
@@ -289,16 +291,18 @@ export async function GET(req: NextRequest) {
     // typed nodes wired to their source, growing the knowledge graph.
     const sigById = new Map(signals.map((s) => [s.id, s]));
     const byHandle = new Map(signals.map((s) => [norm(s.handle.replace(/^u\//, "")), s]));
-    const attrs = new Map<string, { id: string; kind: "EMAIL" | "ALIAS"; value: string; sources: Set<string> }>();
+    type AttrKind = "EMAIL" | "ALIAS" | "LOCATION";
+    const attrs = new Map<string, { id: string; kind: AttrKind; value: string; sources: Set<string> }>();
     for (const p of merged) {
       const ex = extractFromText(p.bio, p.displayName);
-      const items: Array<{ kind: "EMAIL" | "ALIAS"; value: string }> = [
+      const items: Array<{ kind: AttrKind; value: string }> = [
         ...ex.emails.map((v) => ({ kind: "EMAIL" as const, value: v })),
         ...ex.aliases.map((v) => ({ kind: "ALIAS" as const, value: v })),
+        ...(p.location ? [{ kind: "LOCATION" as const, value: p.location.trim() }] : []),
       ];
       for (const it of items) {
         const vn = normId(it.value);
-        if (vn.length < 3) continue;
+        if (vn.length < (it.kind === "LOCATION" ? 2 : 3)) continue;
         if (it.kind === "ALIAS") {
           const existing = byHandle.get(vn);
           if (existing && existing.id !== p.id) { addEdge(p.id, existing.id); continue; } // link, no dup
@@ -309,24 +313,36 @@ export async function GET(req: NextRequest) {
         attrs.get(id)!.sources.add(p.id);
       }
     }
+    const ATTR_META: Record<AttrKind, { disc: string; kind: Signal["kind"]; label: string }> = {
+      EMAIL: { disc: "EM", kind: "email", label: "Email discovered" },
+      ALIAS: { disc: "AL", kind: "alias", label: "Alias discovered" },
+      LOCATION: { disc: "GEO", kind: "location", label: "Location" },
+    };
     for (const a of attrs.values()) {
       const plats = [...a.sources].map((id) => sigById.get(id)?.platform).filter(Boolean) as string[];
+      const meta = ATTR_META[a.kind];
       signals.push({
         id: a.id,
         platform: a.kind,
         handle: a.kind === "ALIAS" ? "@" + a.value : a.value,
-        disc: a.kind === "EMAIL" ? "EM" : "AL",
-        kind: a.kind === "EMAIL" ? "email" : "alias",
-        confidence: 52,
+        disc: meta.disc,
+        kind: meta.kind,
+        confidence: a.kind === "LOCATION" ? 58 : 52,
         status: "candidate",
         evidence: [{
-          name: a.kind === "EMAIL" ? "Email discovered" : "Alias discovered",
-          detail: `Extracted from the profile text on ${plats.slice(0, 3).join(", ") || "a collected profile"}.`,
-          source: "entity extraction · from collected bios",
+          name: meta.label,
+          detail: `From the profile ${a.kind === "LOCATION" ? "location field" : "text"} on ${plats.slice(0, 3).join(", ") || "a collected profile"}.`,
+          source: "entity extraction · from collected profiles",
           weight: 55,
         }],
       });
       for (const sid of a.sources) addEdge(sid, a.id);
+    }
+
+    // breach / leak search (Intelligence X) when a key is configured + app enabled
+    if (intelxEnabled && (!enabled || enabled.has("intelx"))) {
+      const leaks = await searchIntelX(isEmail ? q : matchTarget);
+      signals.push(...leaks);
     }
 
     for (const s of signals) {

@@ -27,6 +27,8 @@ export interface RawProfile {
   avatar?: string;
   /** perceptual hash (dHash) of the avatar, filled in by the enrichment step */
   avatarHash?: string;
+  /** free-text location from the profile, when the source exposes it */
+  location?: string;
   createdAt?: string;
   /** self-declared / verified links to other accounts (strong cross-signal) */
   links?: ProfileLink[];
@@ -71,6 +73,7 @@ async function github(u: string): Promise<RawProfile | null> {
   return {
     id: "github", platform: "GITHUB", disc: "GH", handle: d.login, url: d.html_url,
     displayName: d.name || undefined, bio: d.bio || undefined, avatar: d.avatar_url || undefined,
+    location: d.location || undefined,
     createdAt: d.created_at || undefined,
     links: d.blog ? [{ service: "web", url: d.blog, label: "site" }] : undefined,
     source: "api.github.com · public API",
@@ -149,6 +152,7 @@ async function gravatar(u: string): Promise<RawProfile | null> {
     url: e.profileUrl || `https://gravatar.com/${u}`,
     displayName: e.displayName || e.name?.formatted || undefined,
     bio: e.aboutMe || undefined, avatar: e.thumbnailUrl || undefined,
+    location: e.currentLocation || undefined,
     links: links.length ? links : undefined,
     source: "gravatar.com · public API",
   };

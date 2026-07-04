@@ -29,10 +29,12 @@ export interface Signal {
   evidence: Evidence[];
   /** ids of other signals this account is linked to (declared/verified cross-links) */
   linkedIds?: string[];
-  /** node type for styling: platform (default) / email / alias / phone / person / location */
-  kind?: "platform" | "email" | "alias" | "phone" | "person" | "location";
+  /** node type for styling: platform / email / alias / phone / location / leak / person */
+  kind?: "platform" | "email" | "alias" | "phone" | "person" | "location" | "leak";
   /** public URL of the profile/source, when known (used by "open") */
   url?: string;
+  /** real/display name from the profile, when known (used by the dossier) */
+  displayName?: string;
 }
 
 export const SEED = "j0hn_doe";

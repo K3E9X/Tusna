@@ -152,7 +152,7 @@ export default function OrbitBoard() {
       const el = document.createElement("div");
       el.className = "body";
       el.dataset.kind = d.kind || "platform";
-      const discContent = d.kind === "email" ? "✉" : d.kind === "alias" ? "~" : d.disc;
+      const discContent = d.kind === "email" ? "✉" : d.kind === "alias" ? "~" : d.kind === "phone" ? "☎" : d.disc;
       el.innerHTML = `<div class="disc">${discContent}</div><div class="tag">${escapeHtml(d.handle)}</div><div class="conf">${d.confidence}%</div>`;
       bodiesEl.appendChild(el);
       elsRef.current[d.id] = el;
@@ -586,7 +586,7 @@ export default function OrbitBoard() {
           <div className="l" key={k}><span className="tick" />{BANDS[k].label}</div>
         ))}
       </div>
-      <div className="hint">seed&nbsp;· username <b>or email</b>&nbsp;&nbsp;/&nbsp;&nbsp;SCAN&nbsp;· 13 APIs + WhatsMyName + avatar pHash&nbsp;&nbsp;/&nbsp;&nbsp;click&nbsp;· evidence&nbsp;&nbsp;/&nbsp;&nbsp;drag&nbsp;· pull a body</div>
+      <div className="hint">seed&nbsp;· username <b>· email · phone</b>&nbsp;&nbsp;/&nbsp;&nbsp;SCAN&nbsp;&nbsp;/&nbsp;&nbsp;click&nbsp;· evidence&nbsp;&nbsp;/&nbsp;&nbsp;right-click&nbsp;· pivot · focus&nbsp;&nbsp;/&nbsp;&nbsp;drag&nbsp;· pull</div>
 
       {addForm && (
         <div className="add-overlay" onClick={() => setAddForm(null)}>

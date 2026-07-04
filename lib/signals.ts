@@ -29,8 +29,8 @@ export interface Signal {
   evidence: Evidence[];
   /** ids of other signals this account is linked to (declared/verified cross-links) */
   linkedIds?: string[];
-  /** node type for styling: platform (default) / email / alias / person / location */
-  kind?: "platform" | "email" | "alias" | "person" | "location";
+  /** node type for styling: platform (default) / email / alias / phone / person / location */
+  kind?: "platform" | "email" | "alias" | "phone" | "person" | "location";
   /** public URL of the profile/source, when known (used by "open") */
   url?: string;
 }

@@ -5,7 +5,40 @@ import { scanEmail } from "@/lib/email";
 import { dHashFromUrl, avatarMatch } from "@/lib/phash";
 import { extractFromText, normId } from "@/lib/extract";
 import { collect, collectorEnabled } from "@/lib/collector";
+import { looksLikePhone, phoneIntel, type PhoneIntel } from "@/lib/phone";
 import type { Signal, Evidence, Status } from "@/lib/signals";
+
+function phoneSignal(intel: PhoneIntel): Signal {
+  const valid = intel.valid;
+  const typeLabel = (intel.type || "unknown type").toLowerCase().replace(/_/g, " ");
+  const evidence: Evidence[] = [
+    {
+      name: valid ? "Valid number" : "Not a valid number",
+      detail: `${intel.country || "unknown region"} · ${typeLabel}${intel.callingCode ? " · " + intel.callingCode : ""}`,
+      source: "libphonenumber · offline, deterministic",
+      weight: valid ? 72 : 30,
+    },
+  ];
+  if (intel.e164) {
+    evidence.push({ name: "Formats", detail: `E.164 ${intel.e164}${intel.national ? " · national " + intel.national : ""}`, source: "libphonenumber", weight: 58 });
+  }
+  evidence.push({
+    name: "Owner lookup",
+    detail: "Automated owner identity isn't free — use the Epieos / Truecaller / PhoneInfoga pivots (pre-filled with this number).",
+    source: "guidance",
+    weight: 20,
+  });
+  return {
+    id: "phone:" + (intel.e164 || intel.input).replace(/\D/g, ""),
+    platform: "PHONE",
+    handle: intel.international || intel.input,
+    disc: "TEL",
+    kind: "phone",
+    confidence: valid ? 68 : 30,
+    status: "review",
+    evidence,
+  };
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -155,8 +188,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "invalid input" }, { status: 400 });
   }
   const isEmail = EMAIL_RE.test(q);
+  const isPhone = !isEmail && looksLikePhone(q);
+
+  // phone mode: deterministic offline intel + pivots (no free owner lookup)
+  if (isPhone) {
+    const country = (req.nextUrl.searchParams.get("country") || "FR").toUpperCase();
+    const intel = phoneIntel(q, country);
+    const sig = phoneSignal(intel);
+    return NextResponse.json({ seed: q, mode: "phone", count: 1, signals: [sig], phone: intel });
+  }
+
   if (!isEmail && /[^\w.\-@]/.test(q)) {
-    return NextResponse.json({ error: "invalid username" }, { status: 400 });
+    return NextResponse.json({ error: "invalid input" }, { status: 400 });
   }
   // enabled apps allowlist (omit → run everything)
   const cParam = req.nextUrl.searchParams.get("connectors");

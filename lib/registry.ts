@@ -51,6 +51,8 @@ export const MANUAL_APPS: AppDef[] = [
   { id: "holehe", name: "holehe", category: "Email", kind: "manual", input: "email", status: "free", url: "https://github.com/megadose/holehe", desc: "Email → account existence on 120+ sites." },
   { id: "phoneinfoga", name: "PhoneInfoga", category: "Phone", kind: "manual", input: "phone", status: "free", url: "https://github.com/sundowndev/phoneinfoga", desc: "Phone recon (country, carrier, dorks)." },
   { id: "truecaller", name: "Truecaller", category: "Phone", kind: "manual", input: "phone", status: "freemium", url: "https://www.truecaller.com/search/global/{seed}", desc: "Reverse phone → name (GDPR-sensitive)." },
+  { id: "epieos-phone", name: "Epieos (phone)", category: "Phone", kind: "manual", input: "phone", status: "freemium", url: "https://epieos.com/", desc: "Number → WhatsApp/Telegram/Facebook sign-ups." },
+  { id: "numverify", name: "Numverify", category: "Phone", kind: "manual", input: "phone", status: "freemium", url: "https://numverify.com/", desc: "Validation + carrier/line-type API." },
   { id: "pimeyes", name: "PimEyes", category: "Face", kind: "manual", input: "image", status: "paid", url: "https://pimeyes.com/en", desc: "Reverse face search (biometric caveat)." },
   { id: "facecheck", name: "FaceCheck.id", category: "Face", kind: "manual", input: "image", status: "freemium", url: "https://facecheck.id/", desc: "Reverse face over social/news." },
   { id: "yandex-img", name: "Yandex Images", category: "Face", kind: "manual", input: "image", status: "free", url: "https://yandex.com/images/", desc: "Best free reverse-image for faces." },

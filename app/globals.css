@@ -13,6 +13,7 @@
   --reject: #C98B8B;
   --type-email: #D6B98F;
   --type-alias: #B3A6D6;
+  --type-phone: #8FC7A0;
   --panel: rgba(18, 18, 22, .72);
   --mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -136,6 +137,7 @@ body {
 .body.sel .tag { color: var(--ink); }
 .body[data-kind="email"] .disc { border-color: color-mix(in srgb, var(--type-email) 55%, transparent); color: var(--type-email); border-style: dashed; }
 .body[data-kind="alias"] .disc { border-color: color-mix(in srgb, var(--type-alias) 55%, transparent); color: var(--type-alias); }
+.body[data-kind="phone"] .disc { border-color: color-mix(in srgb, var(--type-phone) 55%, transparent); color: var(--type-phone); }
 .body.confirmed .disc { border-color: color-mix(in srgb, var(--confirm) 70%, transparent); color: var(--confirm); }
 .body.rejected { opacity: .32; }
 .body.rejected .disc { border-style: dashed; }

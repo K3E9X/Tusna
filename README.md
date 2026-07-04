@@ -47,11 +47,13 @@ docs/           # architecture, osint-tools-research, llm-correlation
 
 ## Live connectors (real scan)
 
-The **seed** accepts a **username or an email**.
+The **seed** accepts a **username, an email, or a phone number** (auto-detected).
 
 **Username mode** — **SCAN** queries **13 official public APIs** in parallel (no key, no scraping, ToS-respecting): GitHub, GitLab, Reddit, Hacker News, **Keybase**, **Gravatar**, Bluesky, Mastodon, Chess.com, Codeforces, npm, Docker Hub, Wikipedia. Keybase and Gravatar also surface **declared linked accounts** (verified cross-links) — a strong correlation signal.
 
 **Email mode** — `email → accounts`, no key: (1) **Gravatar by hash** (MD5/SHA256) → verified profile + declared linked accounts (the anchor); (2) a **handle derived** from the local-part (gmail dot/tag normalization) re-run across every source, flagged **"derived (inference)"** and scored lower — the link to the person still needs confirming; (3) **MX validation** of the domain.
+
+**Phone mode** — a phone number (with `+` and spaces, or a national number; default region FR, override with `?country=`) yields **deterministic offline intel** via libphonenumber: validity, country, line type (mobile / fixed), and E.164 / national / international formats — a typed **☎ phone node**. Free automated *owner* lookup doesn't exist, so the node points to the pre-filled **Epieos / Truecaller / PhoneInfoga / Numverify** pivots to go further.
 
 **Broad layer — WhatsMyName.** On top of the 13 APIs, the scan queries the **official WhatsMyName dataset** (600+ sites, loaded at runtime from the maintained repo). These presences are detected by **URL pattern**: they are explicitly flagged **"unverified"**, scored low and placed in cold orbit — the human confirms. This broadens coverage **without manufacturing false positives**. Sites checked per scan are capped (`?depth=`, default 100, to fit a serverless function's time limit) and the response exposes `coverage.capped` — **never a silent truncation**.
 

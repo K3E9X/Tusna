@@ -23,6 +23,8 @@ export default function OrbitBoard() {
   const rebuildRef = useRef<(sigs: Signal[], spawn?: boolean) => void>(() => {});
   const addNodeRef = useRef<(s: Signal) => void>(() => {});
   const mergeRef = useRef<(sigs: Signal[], originId: string, qkey: string) => number>(() => 0);
+  const removeNodeRef = useRef<(id: string) => void>(() => {});
+  const focusRef = useRef<string | null>(null);
 
   const [seed, setSeed] = useState(SEED);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -33,6 +35,10 @@ export default function OrbitBoard() {
   const [casesOpen, setCasesOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
   const [addForm, setAddForm] = useState<{ platform: string; handle: string; url: string; via: string } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
+
+  useEffect(() => { focusRef.current = focusId; }, [focusId]);
   const [enabled, setEnabled] = useState<Set<string>>(() => new Set(BUILTIN_APPS.map((a) => a.id)));
   const enabledRef = useRef(enabled);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -151,6 +157,7 @@ export default function OrbitBoard() {
       bodiesEl.appendChild(el);
       elsRef.current[d.id] = el;
       attachDrag(el, d);
+      el.addEventListener("contextmenu", (e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, id: d.id }); });
       return el;
     }
 
@@ -224,6 +231,17 @@ export default function OrbitBoard() {
     }
     mergeRef.current = mergeNodes;
 
+    function removeNode(id: string) {
+      const i = nodesRef.current.findIndex((n) => n.id === id);
+      if (i < 0) return;
+      nodesRef.current.splice(i, 1);
+      const el = elsRef.current[id];
+      if (el) { el.remove(); delete elsRef.current[id]; }
+      setSelectedId((cur) => (cur === id ? null : cur));
+      setDataVersion((v) => v + 1);
+    }
+    removeNodeRef.current = removeNode;
+
     function step() {
       const nodes = nodesRef.current;
       const K_RAD = 0.02, K_REP = 1400, DAMP = 0.86;
@@ -253,6 +271,13 @@ export default function OrbitBoard() {
       const nodes = nodesRef.current;
       ctx.clearRect(0, 0, W, H);
       const selId = selectedRef.current;
+      // focus mode: dim everything not linked to the focused node
+      let keep: Set<string> | null = null;
+      if (focusRef.current) {
+        const fn = nodes.find((n) => n.id === focusRef.current);
+        keep = new Set([focusRef.current, ...(fn?.linkedIds || [])]);
+      }
+      const dim = (id: string) => (keep && !keep.has(id) ? 0.1 : 1);
       BAND_ORDER.forEach((k) => {
         const b = BANDS[k];
         const rMid = ((b.r0 + b.r1) / 2) * baseR * 0.5;
@@ -265,7 +290,7 @@ export default function OrbitBoard() {
         else if (d.status === "rejected") { col = cssv("--reject"); w = 1; alpha = 0.14; }
         else if (d.id === selId) { col = cssv("--accent"); w = 1.2; alpha = 0.6; }
         else { col = cssv("--ink-3"); w = 1; alpha = 0.3; }
-        ctx.globalAlpha = alpha * d.op;
+        ctx.globalAlpha = alpha * d.op * dim(d.id);
         const mx = (cx + d.x) / 2, my = (cy + d.y) / 2;
         const nx = d.y - cy, ny = cx - d.x, nl = Math.hypot(nx, ny) || 1, bend = 14;
         ctx.beginPath(); ctx.moveTo(cx, cy);
@@ -283,7 +308,7 @@ export default function OrbitBoard() {
           if (d.id >= lid) return; // draw each pair once
           const e = byId[lid];
           if (!e) return;
-          ctx.globalAlpha = 0.5 * Math.min(d.op, e.op);
+          ctx.globalAlpha = 0.5 * Math.min(d.op, e.op) * Math.min(dim(d.id), dim(e.id));
           const mx = (d.x + e.x) / 2, my = (d.y + e.y) / 2;
           const nx = e.y - d.y, ny = d.x - e.x, nl = Math.hypot(nx, ny) || 1, bend = 18;
           ctx.beginPath(); ctx.moveTo(d.x, d.y);
@@ -303,7 +328,7 @@ export default function OrbitBoard() {
       nodes.forEach((d) => {
         const el = elsRef.current[d.id];
         if (!el) return;
-        el.style.left = d.x + "px"; el.style.top = d.y + "px"; el.style.opacity = String(d.op);
+        el.style.left = d.x + "px"; el.style.top = d.y + "px"; el.style.opacity = String(d.op * dim(d.id));
         el.classList.toggle("confirmed", d.status === "confirmed");
         el.classList.toggle("rejected", d.status === "rejected");
         el.classList.toggle("sel", d.id === selId);
@@ -626,6 +651,31 @@ export default function OrbitBoard() {
           </>
         )}
       </aside>
+
+      {menu && (() => {
+        const n = nodesRef.current.find((x) => x.id === menu.id);
+        if (!n) return null;
+        const q = n.handle.replace(/^@/, "").replace(/^u\//, "");
+        return (
+          <>
+            <div className="ctx-backdrop" onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }} />
+            <div className="ctx-menu" style={{ left: Math.min(menu.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 200), top: menu.y }}>
+              <div className="ctx-head">{n.platform}</div>
+              <button onClick={() => { setSelectedId(n.id); setMenu(null); }}>Inspect evidence</button>
+              <button onClick={() => { setMenu(null); pivotOn(n); }}>⌖ Pivot</button>
+              <button onClick={() => { setMenu(null); autoExpand(n); }}>⇲ Auto-expand · 2 hops</button>
+              {n.url && <button onClick={() => { window.open(n.url, "_blank", "noopener,noreferrer"); setMenu(null); }}>↗ Open profile</button>}
+              <button onClick={() => { seedRef.current = q; setSeed(q); setMenu(null); runScan(); }}>◎ Set as seed &amp; rescan</button>
+              <button onClick={() => { setFocusId((f) => (f === n.id ? null : n.id)); setMenu(null); }}>◍ Focus sub-graph</button>
+              <button className="ctx-danger" onClick={() => { removeNodeRef.current(n.id); setMenu(null); }}>✕ Remove</button>
+            </div>
+          </>
+        );
+      })()}
+
+      {focusId && (
+        <button className="focus-chip" onClick={() => setFocusId(null)}>◍ focus active · clear</button>
+      )}
     </>
   );
 }

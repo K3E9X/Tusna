@@ -140,6 +140,7 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
       platform: p.platform,
       handle: p.handle,
       disc: p.disc,
+      url: p.url || undefined,
       confidence,
       status,
       evidence,

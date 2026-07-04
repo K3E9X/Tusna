@@ -31,6 +31,8 @@ export interface Signal {
   linkedIds?: string[];
   /** node type for styling: platform (default) / email / alias / person / location */
   kind?: "platform" | "email" | "alias" | "person" | "location";
+  /** public URL of the profile/source, when known (used by "open") */
+  url?: string;
 }
 
 export const SEED = "j0hn_doe";

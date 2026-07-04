@@ -272,6 +272,7 @@ export async function GET(req: NextRequest) {
         platform: a.kind,
         handle: a.kind === "ALIAS" ? "@" + a.value : a.value,
         disc: a.kind === "EMAIL" ? "EM" : "AL",
+        kind: a.kind === "EMAIL" ? "email" : "alias",
         confidence: 52,
         status: "candidate",
         evidence: [{

@@ -11,6 +11,8 @@
   --accent-dim: rgba(143, 214, 208, .14);
   --confirm: #B7D9B0;
   --reject: #C98B8B;
+  --type-email: #D6B98F;
+  --type-alias: #B3A6D6;
   --panel: rgba(18, 18, 22, .72);
   --mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -122,6 +124,8 @@ body {
 .body:hover .tag { color: var(--ink-2); }
 .body.sel .disc { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px var(--accent-dim), 0 0 22px rgba(143, 214, 208, .25); }
 .body.sel .tag { color: var(--ink); }
+.body[data-kind="email"] .disc { border-color: color-mix(in srgb, var(--type-email) 55%, transparent); color: var(--type-email); border-style: dashed; }
+.body[data-kind="alias"] .disc { border-color: color-mix(in srgb, var(--type-alias) 55%, transparent); color: var(--type-alias); }
 .body.confirmed .disc { border-color: color-mix(in srgb, var(--confirm) 70%, transparent); color: var(--confirm); }
 .body.rejected { opacity: .32; }
 .body.rejected .disc { border-style: dashed; }
@@ -140,7 +144,8 @@ body {
 .insp-score span { font-size: 10px; letter-spacing: .16em; color: var(--ink-3); }
 .track { height: 1px; background: var(--line); margin-top: 18px; position: relative; }
 .track i { position: absolute; left: 0; top: 0; height: 1px; background: var(--accent); transition: width .5s; }
-.pivot-btn { width: 100%; margin-top: 20px; background: transparent; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; padding: 10px; border-radius: 3px; cursor: pointer; transition: .18s; }
+.pivot-row { display: flex; gap: 8px; margin-top: 20px; }
+.pivot-btn { flex: 1; background: transparent; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; padding: 10px 8px; border-radius: 3px; cursor: pointer; transition: .18s; white-space: nowrap; }
 .pivot-btn:hover { background: var(--accent-dim); border-color: var(--accent); }
 .pivot-btn:disabled { opacity: .4; cursor: default; }
 

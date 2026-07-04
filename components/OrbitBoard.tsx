@@ -22,7 +22,7 @@ export default function OrbitBoard() {
   const metaRef = useRef({ cx: 0, cy: 0 });
   const rebuildRef = useRef<(sigs: Signal[], spawn?: boolean) => void>(() => {});
   const addNodeRef = useRef<(s: Signal) => void>(() => {});
-  const mergeRef = useRef<(sigs: Signal[], originId: string, qkey: string) => void>(() => {});
+  const mergeRef = useRef<(sigs: Signal[], originId: string, qkey: string) => number>(() => 0);
 
   const [seed, setSeed] = useState(SEED);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -145,7 +145,9 @@ export default function OrbitBoard() {
     function makeEl(d: WorkNode) {
       const el = document.createElement("div");
       el.className = "body";
-      el.innerHTML = `<div class="disc">${d.disc}</div><div class="tag">${escapeHtml(d.handle)}</div><div class="conf">${d.confidence}%</div>`;
+      el.dataset.kind = d.kind || "platform";
+      const discContent = d.kind === "email" ? "✉" : d.kind === "alias" ? "~" : d.disc;
+      el.innerHTML = `<div class="disc">${discContent}</div><div class="tag">${escapeHtml(d.handle)}</div><div class="conf">${d.confidence}%</div>`;
       bodiesEl.appendChild(el);
       elsRef.current[d.id] = el;
       attachDrag(el, d);
@@ -371,6 +373,47 @@ export default function OrbitBoard() {
     }
   }
 
+  async function autoExpand(startNode: Signal) {
+    if (scanning) return;
+    const MAX_HOPS = 2, CAP = 40, BREADTH = 5;
+    const visited = new Set<string>();
+    const scanOne = async (q: string, originId: string): Promise<number> => {
+      const cids = [...enabledRef.current].join(",");
+      const res = await fetch(`/api/scan?username=${encodeURIComponent(q)}&connectors=${encodeURIComponent(cids)}`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.signals?.length) return 0;
+      return mergeRef.current(data.signals, originId, normId(q));
+    };
+    setScanning(true);
+    try {
+      let frontier = [{ id: startNode.id, q: startNode.handle.replace(/^@/, "").replace(/^u\//, "").trim() }];
+      let total = 0;
+      for (let hop = 1; hop <= MAX_HOPS && total < CAP; hop++) {
+        setScanMsg(`auto-expand · hop ${hop}…`);
+        for (const f of frontier) {
+          if (total >= CAP) break;
+          const qk = normId(f.q);
+          if (!f.q || visited.has(qk)) continue;
+          visited.add(qk);
+          total += await scanOne(f.q, f.id);
+        }
+        // next hop: newly discovered email/alias identifiers not yet pivoted
+        frontier = nodesRef.current
+          .filter((n) => n.kind === "email" || n.kind === "alias")
+          .map((n) => ({ id: n.id, q: n.handle.replace(/^@/, "").trim() }))
+          .filter((f) => f.q && !visited.has(normId(f.q)))
+          .slice(0, BREADTH);
+        if (!frontier.length) break;
+      }
+      setScanMsg(`auto-expand done · +${total}`);
+    } catch {
+      setScanMsg("network unavailable");
+    } finally {
+      setScanning(false);
+      setTimeout(() => setScanMsg(null), 4000);
+    }
+  }
+
   function currentSignals(): Signal[] {
     return nodesRef.current.map((n) => {
       const { x, y, vx, vy, op, a, ...s } = n; // strip physics fields
@@ -554,9 +597,10 @@ export default function OrbitBoard() {
             <div className="track">
               <i style={{ width: selected.confidence + "%", background: selected.status === "rejected" ? "var(--reject)" : "var(--accent)" }} />
             </div>
-            <button className="pivot-btn" onClick={() => pivotOn(selected)} disabled={scanning}>
-              ⌖ PIVOT ON THIS — rescan &amp; expand the graph
-            </button>
+            <div className="pivot-row">
+              <button className="pivot-btn" onClick={() => pivotOn(selected)} disabled={scanning}>⌖ PIVOT</button>
+              <button className="pivot-btn" onClick={() => autoExpand(selected)} disabled={scanning}>⇲ AUTO-EXPAND · 2 hops</button>
+            </div>
             <div className="sect">VERIFIED EVIDENCE</div>
             <div className="evs">
               {selected.evidence.map((e, idx) => (

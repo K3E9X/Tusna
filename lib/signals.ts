@@ -29,6 +29,8 @@ export interface Signal {
   evidence: Evidence[];
   /** ids of other signals this account is linked to (declared/verified cross-links) */
   linkedIds?: string[];
+  /** node type for styling: platform (default) / email / alias / person / location */
+  kind?: "platform" | "email" | "alias" | "person" | "location";
 }
 
 export const SEED = "j0hn_doe";
@@ -101,6 +103,20 @@ export const SIGNALS: Signal[] = [
     evidence: [
       { name: "Divergent avatar", detail: "pHash 21% — different face.", source: "pHash · contradiction", weight: 21 },
       { name: "Inconsistent geo", detail: "Profile based in Texas.", source: "observed · contradiction", weight: 15 },
+    ],
+  },
+  {
+    id: "em", platform: "EMAIL", handle: "j***@proton.me", disc: "EM", kind: "email", confidence: 70, status: "review",
+    linkedIds: ["gh", "x"],
+    evidence: [
+      { name: "Email discovered", detail: "Extracted from GitHub commit metadata and the X bio.", source: "entity extraction · from collected bios", weight: 72 },
+    ],
+  },
+  {
+    id: "al", platform: "ALIAS", handle: "@johndoe_dev", disc: "AL", kind: "alias", confidence: 58, status: "candidate",
+    linkedIds: ["gh"],
+    evidence: [
+      { name: "Alias discovered", detail: "Mentioned in the GitHub bio — pivot to expand.", source: "entity extraction · from collected bios", weight: 60 },
     ],
   },
 ];

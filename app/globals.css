@@ -140,6 +140,10 @@ body {
 .insp-score span { font-size: 10px; letter-spacing: .16em; color: var(--ink-3); }
 .track { height: 1px; background: var(--line); margin-top: 18px; position: relative; }
 .track i { position: absolute; left: 0; top: 0; height: 1px; background: var(--accent); transition: width .5s; }
+.pivot-btn { width: 100%; margin-top: 20px; background: transparent; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; padding: 10px; border-radius: 3px; cursor: pointer; transition: .18s; }
+.pivot-btn:hover { background: var(--accent-dim); border-color: var(--accent); }
+.pivot-btn:disabled { opacity: .4; cursor: default; }
+
 .sect { font-size: 9.5px; letter-spacing: .28em; color: var(--ink-3); margin: 30px 0 4px; }
 .evs { overflow-y: auto; margin: 0 -4px; flex: 1; }
 .ev { padding: 13px 4px; border-bottom: 1px solid var(--line-soft); display: flex; gap: 12px; align-items: flex-start; }

@@ -5,6 +5,7 @@ import { SIGNALS, SEED, BANDS, BAND_ORDER, type Signal, type Status } from "@/li
 import { listCases, saveCase, removeCase, caseToJSON, parseCase, backendMode, type Case } from "@/lib/cases";
 import { BUILTIN_APPS, MANUAL_APPS, type AppDef } from "@/lib/registry";
 import { loadEnabled, saveEnabled } from "@/lib/apps";
+import { normId } from "@/lib/extract";
 
 interface WorkNode extends Signal {
   x: number; y: number; vx: number; vy: number; op: number; a: number;
@@ -21,6 +22,7 @@ export default function OrbitBoard() {
   const metaRef = useRef({ cx: 0, cy: 0 });
   const rebuildRef = useRef<(sigs: Signal[], spawn?: boolean) => void>(() => {});
   const addNodeRef = useRef<(s: Signal) => void>(() => {});
+  const mergeRef = useRef<(sigs: Signal[], originId: string, qkey: string) => void>(() => {});
 
   const [seed, setSeed] = useState(SEED);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -181,6 +183,45 @@ export default function OrbitBoard() {
     }
     addNodeRef.current = addNode;
 
+    // merge a rescan's results into the live board, linked to the pivoted node
+    function mergeNodes(sigs: Signal[], originId: string, qkey: string) {
+      const nk = (s: { platform: string; handle: string }) =>
+        s.platform.toLowerCase().replace(/[^a-z0-9]/g, "") + "|" + s.handle.replace(/^u\//, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const byId = new Map(nodesRef.current.map((n) => [n.id, n]));
+      const byKey = new Map(nodesRef.current.map((n) => [nk(n), n]));
+      const remap: Record<string, string> = {};
+      for (const s of sigs) {
+        const k = nk(s);
+        remap[s.id] = byKey.has(k) ? byKey.get(k)!.id : "pv:" + qkey + ":" + s.id;
+      }
+      const link = (aId: string, bId: string) => {
+        const A = byId.get(aId), B = byId.get(bId);
+        if (!A || !B || aId === bId) return;
+        A.linkedIds = A.linkedIds || []; B.linkedIds = B.linkedIds || [];
+        if (!A.linkedIds.includes(bId)) A.linkedIds.push(bId);
+        if (!B.linkedIds.includes(aId)) B.linkedIds.push(aId);
+      };
+      const origin = byId.get(originId);
+      const ox = origin ? origin.x : cx, oy = origin ? origin.y : cy;
+      let added = 0;
+      for (const s of sigs) {
+        const fid = remap[s.id];
+        if (!byId.has(fid)) {
+          const ang = Math.random() * Math.PI * 2, r = 55 + Math.random() * 45;
+          const d: WorkNode = {
+            ...s, id: fid, linkedIds: (s.linkedIds || []).map((x) => remap[x] || x),
+            a: ang, x: ox + Math.cos(ang) * r, y: oy + Math.sin(ang) * r, vx: 0, vy: 0, op: 0,
+          };
+          nodesRef.current.push(d); byId.set(fid, d); makeEl(d); added++;
+        }
+        link(originId, fid);
+        for (const lid of s.linkedIds || []) link(fid, remap[lid] || lid);
+      }
+      setDataVersion((v) => v + 1);
+      return added;
+    }
+    mergeRef.current = mergeNodes;
+
     function step() {
       const nodes = nodesRef.current;
       const K_RAD = 0.02, K_REP = 1400, DAMP = 0.86;
@@ -302,6 +343,26 @@ export default function OrbitBoard() {
       if (!data.signals?.length) { setScanMsg("no public presence found"); return; }
       rebuildRef.current(data.signals, true);
       setScanMsg(`${data.signals.length} real presence(s)`);
+    } catch {
+      setScanMsg("network unavailable");
+    } finally {
+      setScanning(false);
+      setTimeout(() => setScanMsg(null), 4000);
+    }
+  }
+
+  async function pivotOn(node: Signal) {
+    // pivot query: the email value, or the handle stripped of @ / u/
+    const q = node.handle.replace(/^@/, "").replace(/^u\//, "").trim();
+    if (!q || scanning) return;
+    setScanning(true); setScanMsg(`pivoting on ${q}…`);
+    try {
+      const cids = [...enabledRef.current].join(",");
+      const res = await fetch(`/api/scan?username=${encodeURIComponent(q)}&connectors=${encodeURIComponent(cids)}`);
+      const data = await res.json();
+      if (!res.ok || !data.signals?.length) { setScanMsg("nothing new to pivot"); return; }
+      mergeRef.current(data.signals, node.id, normId(q));
+      setScanMsg(`+ hop from ${q} (${data.signals.length})`);
     } catch {
       setScanMsg("network unavailable");
     } finally {
@@ -493,6 +554,9 @@ export default function OrbitBoard() {
             <div className="track">
               <i style={{ width: selected.confidence + "%", background: selected.status === "rejected" ? "var(--reject)" : "var(--accent)" }} />
             </div>
+            <button className="pivot-btn" onClick={() => pivotOn(selected)} disabled={scanning}>
+              ⌖ PIVOT ON THIS — rescan &amp; expand the graph
+            </button>
             <div className="sect">VERIFIED EVIDENCE</div>
             <div className="evs">
               {selected.evidence.map((e, idx) => (

@@ -47,13 +47,15 @@ docs/           # architecture, osint-tools-research, llm-correlation
 
 ## Live connectors (real scan)
 
-The **seed** accepts a **username, an email, or a phone number** (auto-detected).
+The **seed** accepts a **username, email, phone number, or full name** (auto-detected).
 
 **Username mode** — **SCAN** queries **13 official public APIs** in parallel (no key, no scraping, ToS-respecting): GitHub, GitLab, Reddit, Hacker News, **Keybase**, **Gravatar**, Bluesky, Mastodon, Chess.com, Codeforces, npm, Docker Hub, Wikipedia. Keybase and Gravatar also surface **declared linked accounts** (verified cross-links) — a strong correlation signal.
 
 **Email mode** — `email → accounts`, no key: (1) **Gravatar by hash** (MD5/SHA256) → verified profile + declared linked accounts (the anchor); (2) a **handle derived** from the local-part (gmail dot/tag normalization) re-run across every source, flagged **"derived (inference)"** and scored lower — the link to the person still needs confirming; (3) **MX validation** of the domain.
 
 **Phone mode** — a phone number (with `+` and spaces, or a national number; default region FR, override with `?country=`) yields **deterministic offline intel** via libphonenumber: validity, country, line type (mobile / fixed), and E.164 / national / international formats — a typed **☎ phone node**. Free automated *owner* lookup doesn't exist, so the node points to the pre-filled **Epieos / Truecaller / PhoneInfoga / Numverify** pivots to go further.
+
+**Name mode** — a full name ("Jean Dupont") has no free resolver, so name mode generates **candidate handles** (jeandupont, jean.dupont, jdupont, dupontjean…) as pivot-ready nodes around a ◆ person node, and exposes the **Name pivots** (Google exact-search, LinkedIn, people-search) pre-filled. Pivot / auto-expand the candidates → real accounts → the dossier confirms the name.
 
 **Broad layer — WhatsMyName.** On top of the 13 APIs, the scan queries the **official WhatsMyName dataset** (600+ sites, loaded at runtime from the maintained repo). These presences are detected by **URL pattern**: they are explicitly flagged **"unverified"**, scored low and placed in cold orbit — the human confirms. This broadens coverage **without manufacturing false positives**. Sites checked per scan are capped (`?depth=`, default 100, to fit a serverless function's time limit) and the response exposes `coverage.capped` — **never a silent truncation**.
 
@@ -94,6 +96,8 @@ Finding nodes isn't the point; *identifying the person* is. The **DOSSIER** cons
 **⚡ INVESTIGATE** runs it end-to-end in one click: scan the seed → auto-expand one hop from a discovered identifier → open the synthesized dossier. **▤ DOSSIER** opens the synthesis for the current board at any time.
 
 **Breach search (IntelX).** Set `INTELX_API_KEY` (freemium) on Vercel to enable the **Intelligence X** app — a scan then also searches leaks/pastes/darkweb for the identifier and adds ⚠ leak nodes (sensitive: use under a legal basis; credentials are never redistributed).
+
+**Grounded LLM brief (optional).** In the dossier, **✦ SYNTHESIZE** produces a short intelligence brief from the evidence — provider-agnostic (OpenAI-compatible: Ollama, Groq, OpenRouter, Together…). Set `LLM_API_URL` (base, e.g. `http://host:11434/v1`), `LLM_MODEL`, and optionally `LLM_API_KEY`. The prompt enforces the anti-hallucination discipline (grounded to the collected evidence, every claim cited in `[brackets]`, doubt-biased, no invented facts) — see [`docs/llm-correlation.md`](docs/llm-correlation.md). Disabled gracefully when unset.
 
 ## Persistence
 

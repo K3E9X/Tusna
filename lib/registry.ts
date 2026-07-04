@@ -4,7 +4,7 @@
 //  - "manual" apps are cipher387-style external tools: "Add" installs them, then
 //    they open pre-filled with the current seed (analyst pastes findings back).
 
-export type AppInput = "username" | "email" | "both" | "image" | "phone" | "domain";
+export type AppInput = "username" | "email" | "both" | "image" | "phone" | "domain" | "name";
 export type AppStatus = "free" | "freemium" | "paid";
 
 export interface AppDef {
@@ -57,6 +57,9 @@ export const MANUAL_APPS: AppDef[] = [
   { id: "pimeyes", name: "PimEyes", category: "Face", kind: "manual", input: "image", status: "paid", url: "https://pimeyes.com/en", desc: "Reverse face search (biometric caveat)." },
   { id: "facecheck", name: "FaceCheck.id", category: "Face", kind: "manual", input: "image", status: "freemium", url: "https://facecheck.id/", desc: "Reverse face over social/news." },
   { id: "yandex-img", name: "Yandex Images", category: "Face", kind: "manual", input: "image", status: "free", url: "https://yandex.com/images/", desc: "Best free reverse-image for faces." },
+  { id: "google-dork", name: "Google", category: "Name", kind: "manual", input: "name", status: "free", url: "https://www.google.com/search?q=%22{seed}%22", desc: "Exact-name web search (dork)." },
+  { id: "linkedin", name: "LinkedIn", category: "Name", kind: "manual", input: "name", status: "freemium", url: "https://www.linkedin.com/search/results/people/?keywords={seed}", desc: "People search by name." },
+  { id: "truepeoplesearch", name: "TruePeopleSearch", category: "Name", kind: "manual", input: "name", status: "free", url: "https://www.truepeoplesearch.com/results?name={seed}", desc: "US public-records people search." },
   { id: "shodan", name: "Shodan", category: "Infra", kind: "manual", input: "domain", status: "freemium", url: "https://www.shodan.io/search?query={seed}", desc: "Exposed devices/services search." },
   { id: "crtsh", name: "crt.sh", category: "Infra", kind: "manual", input: "domain", status: "free", url: "https://crt.sh/?q={seed}", desc: "Certificate transparency → subdomains." },
   { id: "intelx", name: "Intelligence X", category: "Leaks", kind: "manual", input: "both", status: "freemium", url: "https://intelx.io/?s={seed}", desc: "Leaks, pastes, darkweb, historical data." },

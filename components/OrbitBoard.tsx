@@ -39,6 +39,26 @@ export default function OrbitBoard() {
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [dossier, setDossier] = useState<Dossier | null>(null);
+  const [narrative, setNarrative] = useState<string | null>(null);
+  const [llmBusy, setLlmBusy] = useState(false);
+
+  async function synthesizeDossier() {
+    if (llmBusy) return;
+    setLlmBusy(true); setNarrative(null);
+    try {
+      const res = await fetch("/api/synthesize", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ signals: currentSignals() }),
+      });
+      const data = await res.json();
+      if (!data.configured) { setNarrative("⚙ LLM not configured — set LLM_API_URL and LLM_MODEL (Ollama / Groq / OpenRouter…) as Vercel env vars."); return; }
+      setNarrative(data.narrative || "no narrative returned.");
+    } catch {
+      setNarrative("LLM request failed.");
+    } finally {
+      setLlmBusy(false);
+    }
+  }
 
   useEffect(() => { focusRef.current = focusId; }, [focusId]);
   const [enabled, setEnabled] = useState<Set<string>>(() => new Set(BUILTIN_APPS.map((a) => a.id)));
@@ -154,7 +174,7 @@ export default function OrbitBoard() {
       const el = document.createElement("div");
       el.className = "body";
       el.dataset.kind = d.kind || "platform";
-      const discContent = d.kind === "email" ? "✉" : d.kind === "alias" ? "~" : d.kind === "phone" ? "☎" : d.kind === "location" ? "⌖" : d.kind === "leak" ? "⚠" : d.disc;
+      const discContent = d.kind === "email" ? "✉" : d.kind === "alias" ? "~" : d.kind === "phone" ? "☎" : d.kind === "location" ? "⌖" : d.kind === "leak" ? "⚠" : d.kind === "person" ? "◆" : d.disc;
       el.innerHTML = `<div class="disc">${discContent}</div><div class="tag">${escapeHtml(d.handle)}</div><div class="conf">${d.confidence}%</div>`;
       bodiesEl.appendChild(el);
       elsRef.current[d.id] = el;
@@ -612,7 +632,7 @@ export default function OrbitBoard() {
           <div className="l" key={k}><span className="tick" />{BANDS[k].label}</div>
         ))}
       </div>
-      <div className="hint">seed&nbsp;· username <b>· email · phone</b>&nbsp;&nbsp;/&nbsp;&nbsp;SCAN&nbsp;&nbsp;/&nbsp;&nbsp;click&nbsp;· evidence&nbsp;&nbsp;/&nbsp;&nbsp;right-click&nbsp;· pivot · focus&nbsp;&nbsp;/&nbsp;&nbsp;drag&nbsp;· pull</div>
+      <div className="hint">seed&nbsp;· username <b>· email · phone · name</b>&nbsp;&nbsp;/&nbsp;&nbsp;⚡ INVESTIGATE&nbsp;&nbsp;/&nbsp;&nbsp;right-click&nbsp;· pivot · focus&nbsp;&nbsp;/&nbsp;&nbsp;▤ DOSSIER</div>
 
       {addForm && (
         <div className="add-overlay" onClick={() => setAddForm(null)}>
@@ -704,9 +724,9 @@ export default function OrbitBoard() {
       )}
 
       {dossier && (
-        <div className="add-overlay" onClick={() => setDossier(null)}>
+        <div className="add-overlay" onClick={() => { setDossier(null); setNarrative(null); }}>
           <div className="dossier" onClick={(e) => e.stopPropagation()}>
-            <button className="insp-close" onClick={() => setDossier(null)} aria-label="close">✕</button>
+            <button className="insp-close" onClick={() => { setDossier(null); setNarrative(null); }} aria-label="close">✕</button>
             <div className="insp-plat">DOSSIER · synthesized identity</div>
             <div className="dossier-name">{dossier.name || "— name not established —"}</div>
             {dossier.nameAlts.length > 0 && <div className="dossier-alts">also: {dossier.nameAlts.join(" · ")}</div>}
@@ -714,6 +734,10 @@ export default function OrbitBoard() {
               <b>{dossier.identificationScore}</b><span>IDENTIFICATION<br />CONFIDENCE</span>
               <span className="dossier-note">rule-based synthesis of verified nodes — no unsourced inference</span>
             </div>
+            <button className="pivot-btn" style={{ marginTop: 16 }} onClick={synthesizeDossier} disabled={llmBusy}>
+              {llmBusy ? "✦ synthesizing…" : "✦ SYNTHESIZE (grounded LLM brief)"}
+            </button>
+            {narrative && <div className="narrative">{narrative}</div>}
             <div className="dossier-grid">
               {dossierBlock("EMAILS", dossier.emails)}
               {dossierBlock("PHONES", dossier.phones)}

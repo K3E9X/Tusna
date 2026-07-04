@@ -7,6 +7,7 @@ import { extractFromText, normId } from "@/lib/extract";
 import { collect, collectorEnabled } from "@/lib/collector";
 import { searchIntelX, intelxEnabled } from "@/lib/intelx";
 import { looksLikePhone, phoneIntel, type PhoneIntel } from "@/lib/phone";
+import { looksLikeName, nameSignals } from "@/lib/name";
 import type { Signal, Evidence, Status } from "@/lib/signals";
 
 function phoneSignal(intel: PhoneIntel): Signal {
@@ -198,6 +199,11 @@ export async function GET(req: NextRequest) {
     const intel = phoneIntel(q, country);
     const sig = phoneSignal(intel);
     return NextResponse.json({ seed: q, mode: "phone", count: 1, signals: [sig], phone: intel });
+  }
+
+  // name mode: full-name → person node + candidate handles + Name pivots
+  if (!isEmail && !isPhone && looksLikeName(q)) {
+    return NextResponse.json({ seed: q, mode: "name", count: 0, signals: nameSignals(q) });
   }
 
   if (!isEmail && /[^\w.\-@]/.test(q)) {

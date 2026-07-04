@@ -16,6 +16,7 @@
   --type-phone: #8FC7A0;
   --type-location: #8FB4D6;
   --type-leak: #D69090;
+  --type-person: #E6DFA0;
   --panel: rgba(18, 18, 22, .72);
   --mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -138,6 +139,8 @@ body {
 .da-conf { font-family: var(--mono); font-size: 11px; color: var(--ink-2); flex: none; }
 .da-open { color: var(--accent); text-decoration: none; flex: none; }
 .dossier-empty { font-size: 11px; color: var(--ink-4); padding: 8px 0; }
+.narrative { margin-top: 12px; padding: 14px; border: 1px solid var(--line-soft); border-radius: 5px; background: var(--void-2);
+  font-size: 12.5px; line-height: 1.65; color: var(--ink); white-space: pre-wrap; }
 
 .add-overlay { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.45); display: grid; place-items: center; }
 .add-card { width: 320px; background: var(--panel); backdrop-filter: blur(16px); border: 1px solid var(--accent); border-radius: 6px; padding: 20px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
@@ -171,6 +174,7 @@ body {
 .body[data-kind="phone"] .disc { border-color: color-mix(in srgb, var(--type-phone) 55%, transparent); color: var(--type-phone); }
 .body[data-kind="location"] .disc { border-color: color-mix(in srgb, var(--type-location) 55%, transparent); color: var(--type-location); }
 .body[data-kind="leak"] .disc { border-color: color-mix(in srgb, var(--type-leak) 55%, transparent); color: var(--type-leak); border-style: dashed; }
+.body[data-kind="person"] .disc { border-color: color-mix(in srgb, var(--type-person) 60%, transparent); color: var(--type-person); }
 .body.confirmed .disc { border-color: color-mix(in srgb, var(--confirm) 70%, transparent); color: var(--confirm); }
 .body.rejected { opacity: .32; }
 .body.rejected .disc { border-style: dashed; }

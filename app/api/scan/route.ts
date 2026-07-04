@@ -3,6 +3,8 @@ import { scanUsername, type RawProfile } from "@/lib/connectors";
 import { scanWmn } from "@/lib/wmn";
 import { scanEmail } from "@/lib/email";
 import { dHashFromUrl, avatarMatch } from "@/lib/phash";
+import { extractFromText, normId } from "@/lib/extract";
+import { collect, collectorEnabled } from "@/lib/collector";
 import type { Signal, Evidence, Status } from "@/lib/signals";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -31,6 +33,7 @@ async function enrichAvatars(profiles: RawProfile[], max = 14): Promise<void> {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // allow the WhatsMyName sweep to finish (Vercel Pro)
 
 function norm(s?: string): string {
   return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -123,7 +126,7 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
       }
     }
 
-    const base = p.unverified ? (exact ? 42 : 32) : p.declared ? 60 : p.derived ? (exact ? 48 : 38) : (exact ? 62 : 46);
+    const base = p.unverified ? (exact ? 55 : 42) : p.declared ? 60 : p.derived ? (exact ? 48 : 38) : (exact ? 62 : 46);
     let confidence = base + crossBoost;
     if (p.displayName) confidence += 6;
     if (p.bio) confidence += 5;
@@ -146,7 +149,7 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
 
 export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("username") || "").trim();
-  const depth = clamp(parseInt(req.nextUrl.searchParams.get("depth") || "100", 10) || 100, 1, 250);
+  const depth = clamp(parseInt(req.nextUrl.searchParams.get("depth") || "120", 10) || 120, 1, 300);
   if (!q || q.length > 128) {
     return NextResponse.json({ error: "invalid input" }, { status: 400 });
   }
@@ -182,12 +185,26 @@ export async function GET(req: NextRequest) {
       checked = wmn.checked; totalSites = wmn.total;
     }
 
-    // dedupe: prefer the richer API profile per platform, then drop duplicate ids
+    // deep collection via the Maigret worker (rich profile data + discovered
+    // identifiers), when a COLLECTOR_URL is configured and the app is enabled
+    if (collectorEnabled && (!enabled || enabled.has("maigret"))) {
+      const mg = await collect(matchTarget);
+      if (isEmail) mg.forEach((p) => (p.derived = true));
+      apiProfiles = [...apiProfiles, ...mg];
+    }
+
+    // dedupe: prefer the richer API profile per platform, then collapse duplicates
+    // by id AND by platform+handle (community WhatsMyName data has near-dup entries)
     const seen = new Set(apiProfiles.map((p) => norm(p.platform)));
     const mergedRaw = [...apiProfiles, ...wmnHits.filter((w) => !seen.has(norm(w.platform)))];
     const byId = new Map<string, RawProfile>();
-    for (const p of mergedRaw) if (!byId.has(p.id)) byId.set(p.id, p);
-    const merged = [...byId.values()];
+    const byKey = new Set<string>();
+    const merged: RawProfile[] = [];
+    for (const p of mergedRaw) {
+      const key = norm(p.platform) + "|" + norm(p.handle.replace(/^u\//, ""));
+      if (byId.has(p.id) || byKey.has(key)) continue;
+      byId.set(p.id, p); byKey.add(key); merged.push(p);
+    }
 
     // expand declared/verified links (Keybase, Gravatar) into connected nodes + edges
     const edges = new Map<string, Set<string>>();
@@ -223,6 +240,51 @@ export async function GET(req: NextRequest) {
     if (phashOn) await enrichAvatars(merged);
 
     const signals = correlate(matchTarget, merged);
+
+    // entity extraction: mine collected bios/names for emails, aliases, links →
+    // typed nodes wired to their source, growing the knowledge graph.
+    const sigById = new Map(signals.map((s) => [s.id, s]));
+    const byHandle = new Map(signals.map((s) => [norm(s.handle.replace(/^u\//, "")), s]));
+    const attrs = new Map<string, { id: string; kind: "EMAIL" | "ALIAS"; value: string; sources: Set<string> }>();
+    for (const p of merged) {
+      const ex = extractFromText(p.bio, p.displayName);
+      const items: Array<{ kind: "EMAIL" | "ALIAS"; value: string }> = [
+        ...ex.emails.map((v) => ({ kind: "EMAIL" as const, value: v })),
+        ...ex.aliases.map((v) => ({ kind: "ALIAS" as const, value: v })),
+      ];
+      for (const it of items) {
+        const vn = normId(it.value);
+        if (vn.length < 3) continue;
+        if (it.kind === "ALIAS") {
+          const existing = byHandle.get(vn);
+          if (existing && existing.id !== p.id) { addEdge(p.id, existing.id); continue; } // link, no dup
+          if (vn === norm((matchTarget || "").replace(/^u\//, ""))) continue; // it's the seed handle
+        }
+        const id = `attr:${it.kind.toLowerCase()}:${vn}`;
+        if (!attrs.has(id)) attrs.set(id, { id, kind: it.kind, value: it.value, sources: new Set() });
+        attrs.get(id)!.sources.add(p.id);
+      }
+    }
+    for (const a of attrs.values()) {
+      const plats = [...a.sources].map((id) => sigById.get(id)?.platform).filter(Boolean) as string[];
+      signals.push({
+        id: a.id,
+        platform: a.kind,
+        handle: a.kind === "ALIAS" ? "@" + a.value : a.value,
+        disc: a.kind === "EMAIL" ? "EM" : "AL",
+        kind: a.kind === "EMAIL" ? "email" : "alias",
+        confidence: 52,
+        status: "candidate",
+        evidence: [{
+          name: a.kind === "EMAIL" ? "Email discovered" : "Alias discovered",
+          detail: `Extracted from the profile text on ${plats.slice(0, 3).join(", ") || "a collected profile"}.`,
+          source: "entity extraction · from collected bios",
+          weight: 55,
+        }],
+      });
+      for (const sid of a.sources) addEdge(sid, a.id);
+    }
+
     for (const s of signals) {
       const set = edges.get(s.id);
       if (set?.size) s.linkedIds = [...set];

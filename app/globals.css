@@ -11,6 +11,8 @@
   --accent-dim: rgba(143, 214, 208, .14);
   --confirm: #B7D9B0;
   --reject: #C98B8B;
+  --type-email: #D6B98F;
+  --type-alias: #B3A6D6;
   --panel: rgba(18, 18, 22, .72);
   --mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -95,6 +97,17 @@ body {
 .app-desc { font-size: 9.5px; color: var(--ink-3); margin-top: 2px; line-height: 1.4; }
 .app-open { flex: none; background: transparent; border: 0; color: var(--accent); cursor: pointer; font-size: 13px; padding: 0 4px; }
 
+.add-overlay { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.45); display: grid; place-items: center; }
+.add-card { width: 320px; background: var(--panel); backdrop-filter: blur(16px); border: 1px solid var(--accent); border-radius: 6px; padding: 20px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.add-title { font-size: 10px; letter-spacing: .24em; color: var(--ink-3); margin-bottom: 16px; }
+.add-title em { font-style: normal; color: var(--accent); }
+.add-field { display: block; margin-bottom: 12px; }
+.add-field span { display: block; font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 5px; }
+.add-field input { width: 100%; background: var(--void-2); border: 1px solid var(--line); border-radius: 3px; color: var(--ink); font-family: var(--mono); font-size: 13px; padding: 8px 10px; outline: none; }
+.add-field input:focus { border-color: var(--accent); }
+.add-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+.add-primary { border-color: var(--accent) !important; color: var(--accent) !important; }
+
 .legend { position: fixed; left: 22px; bottom: 20px; z-index: 20; font-size: 9.5px; letter-spacing: .18em; color: var(--ink-3); line-height: 2; }
 .legend .l { display: flex; align-items: center; gap: 8px; }
 .legend .tick { width: 16px; height: 1px; background: var(--ink-4); }
@@ -111,6 +124,8 @@ body {
 .body:hover .tag { color: var(--ink-2); }
 .body.sel .disc { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px var(--accent-dim), 0 0 22px rgba(143, 214, 208, .25); }
 .body.sel .tag { color: var(--ink); }
+.body[data-kind="email"] .disc { border-color: color-mix(in srgb, var(--type-email) 55%, transparent); color: var(--type-email); border-style: dashed; }
+.body[data-kind="alias"] .disc { border-color: color-mix(in srgb, var(--type-alias) 55%, transparent); color: var(--type-alias); }
 .body.confirmed .disc { border-color: color-mix(in srgb, var(--confirm) 70%, transparent); color: var(--confirm); }
 .body.rejected { opacity: .32; }
 .body.rejected .disc { border-style: dashed; }
@@ -129,6 +144,11 @@ body {
 .insp-score span { font-size: 10px; letter-spacing: .16em; color: var(--ink-3); }
 .track { height: 1px; background: var(--line); margin-top: 18px; position: relative; }
 .track i { position: absolute; left: 0; top: 0; height: 1px; background: var(--accent); transition: width .5s; }
+.pivot-row { display: flex; gap: 8px; margin-top: 20px; }
+.pivot-btn { flex: 1; background: transparent; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; padding: 10px 8px; border-radius: 3px; cursor: pointer; transition: .18s; white-space: nowrap; }
+.pivot-btn:hover { background: var(--accent-dim); border-color: var(--accent); }
+.pivot-btn:disabled { opacity: .4; cursor: default; }
+
 .sect { font-size: 9.5px; letter-spacing: .28em; color: var(--ink-3); margin: 30px 0 4px; }
 .evs { overflow-y: auto; margin: 0 -4px; flex: 1; }
 .ev { padding: 13px 4px; border-bottom: 1px solid var(--line-soft); display: flex; gap: 12px; align-items: flex-start; }

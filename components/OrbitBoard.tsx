@@ -5,6 +5,7 @@ import { SIGNALS, SEED, BANDS, BAND_ORDER, type Signal, type Status } from "@/li
 import { listCases, saveCase, removeCase, caseToJSON, parseCase, backendMode, type Case } from "@/lib/cases";
 import { BUILTIN_APPS, MANUAL_APPS, type AppDef } from "@/lib/registry";
 import { loadEnabled, saveEnabled } from "@/lib/apps";
+import { normId } from "@/lib/extract";
 
 interface WorkNode extends Signal {
   x: number; y: number; vx: number; vy: number; op: number; a: number;
@@ -20,6 +21,8 @@ export default function OrbitBoard() {
   const draggingRef = useRef<WorkNode | null>(null);
   const metaRef = useRef({ cx: 0, cy: 0 });
   const rebuildRef = useRef<(sigs: Signal[], spawn?: boolean) => void>(() => {});
+  const addNodeRef = useRef<(s: Signal) => void>(() => {});
+  const mergeRef = useRef<(sigs: Signal[], originId: string, qkey: string) => number>(() => 0);
 
   const [seed, setSeed] = useState(SEED);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -29,6 +32,7 @@ export default function OrbitBoard() {
   const [cases, setCases] = useState<Case[]>([]);
   const [casesOpen, setCasesOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
+  const [addForm, setAddForm] = useState<{ platform: string; handle: string; url: string; via: string } | null>(null);
   const [enabled, setEnabled] = useState<Set<string>>(() => new Set(BUILTIN_APPS.map((a) => a.id)));
   const enabledRef = useRef(enabled);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -49,6 +53,32 @@ export default function OrbitBoard() {
     const s = encodeURIComponent(seedRef.current.trim());
     const url = app.url ? app.url.replace(/\{seed\}/g, s) : "#";
     window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  function openAddForm(via?: string, platform?: string) {
+    setAddForm({ platform: platform || "", handle: "", url: "", via: via || "" });
+    setAppsOpen(false);
+  }
+
+  function submitAdd() {
+    if (!addForm) return;
+    const platform = addForm.platform.trim();
+    const handle = addForm.handle.trim();
+    if (!platform || !handle) { flashMsg("platform & handle required"); return; }
+    const key = (handle.replace(/^u\//, "") + platform).toLowerCase().replace(/[^a-z0-9]/g, "");
+    const via = addForm.via.trim() || "manual pivot";
+    const evidence = [{ name: "Added manually", detail: `Found via ${via} and added by the analyst — to confirm.`, source: addForm.url.trim() || "manual entry", weight: 60 }];
+    const seedN = seedRef.current.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (seedN && seedN === handle.replace(/^u\//, "").toLowerCase().replace(/[^a-z0-9]/g, "")) {
+      evidence.push({ name: "Matches the seed", detail: "Handle equals the seed.", source: "correlation", weight: 78 });
+    }
+    addNodeRef.current({
+      id: "manual:" + key, platform: platform.toUpperCase(), handle,
+      disc: (platform.replace(/[^A-Za-z0-9]/g, "").slice(0, 2) || "MN").toUpperCase(),
+      confidence: 55, status: "review", evidence,
+    });
+    setAddForm(null);
+    flashMsg("presence added");
   }
 
   function flashMsg(m: string) { setScanMsg(m); setTimeout(() => setScanMsg(null), 3000); }
@@ -112,6 +142,18 @@ export default function OrbitBoard() {
       el.addEventListener("click", () => { if (!moved) setSelectedId(d.id); });
     }
 
+    function makeEl(d: WorkNode) {
+      const el = document.createElement("div");
+      el.className = "body";
+      el.dataset.kind = d.kind || "platform";
+      const discContent = d.kind === "email" ? "✉" : d.kind === "alias" ? "~" : d.disc;
+      el.innerHTML = `<div class="disc">${discContent}</div><div class="tag">${escapeHtml(d.handle)}</div><div class="conf">${d.confidence}%</div>`;
+      bodiesEl.appendChild(el);
+      elsRef.current[d.id] = el;
+      attachDrag(el, d);
+      return el;
+    }
+
     function rebuild(sigs: Signal[], spawn = false) {
       const nodes: WorkNode[] = sigs.map((s, i) => {
         const a = -Math.PI / 2 + i * ((2 * Math.PI) / Math.max(1, sigs.length));
@@ -122,18 +164,65 @@ export default function OrbitBoard() {
       elsRef.current = {};
       bodiesEl.innerHTML = "";
       nodes.forEach((d, i) => {
-        const el = document.createElement("div");
-        el.className = "body";
-        el.innerHTML = `<div class="disc">${d.disc}</div><div class="tag">${escapeHtml(d.handle)}</div><div class="conf">${d.confidence}%</div>`;
-        bodiesEl.appendChild(el);
-        elsRef.current[d.id] = el;
-        attachDrag(el, d);
+        makeEl(d);
         if (spawn) setTimeout(() => { const a = Math.random() * Math.PI * 2; const edge = Math.max(W, H) * 0.7; d.x = cx + Math.cos(a) * edge; d.y = cy + Math.sin(a) * edge; d.op = 0; }, i * 110);
       });
       setSelectedId(null);
       setDataVersion((v) => v + 1);
     }
     rebuildRef.current = rebuild;
+
+    // append a single node into the live sim (used by "add presence")
+    function addNode(s: Signal) {
+      if (nodesRef.current.some((n) => n.id === s.id)) return; // no dup
+      const a = Math.random() * Math.PI * 2;
+      const edge = Math.max(W, H) * 0.7;
+      const d: WorkNode = { ...s, a, x: cx + Math.cos(a) * edge, y: cy + Math.sin(a) * edge, vx: 0, vy: 0, op: 0 };
+      nodesRef.current.push(d);
+      makeEl(d);
+      setDataVersion((v) => v + 1);
+      setSelectedId(s.id);
+    }
+    addNodeRef.current = addNode;
+
+    // merge a rescan's results into the live board, linked to the pivoted node
+    function mergeNodes(sigs: Signal[], originId: string, qkey: string) {
+      const nk = (s: { platform: string; handle: string }) =>
+        s.platform.toLowerCase().replace(/[^a-z0-9]/g, "") + "|" + s.handle.replace(/^u\//, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const byId = new Map(nodesRef.current.map((n) => [n.id, n]));
+      const byKey = new Map(nodesRef.current.map((n) => [nk(n), n]));
+      const remap: Record<string, string> = {};
+      for (const s of sigs) {
+        const k = nk(s);
+        remap[s.id] = byKey.has(k) ? byKey.get(k)!.id : "pv:" + qkey + ":" + s.id;
+      }
+      const link = (aId: string, bId: string) => {
+        const A = byId.get(aId), B = byId.get(bId);
+        if (!A || !B || aId === bId) return;
+        A.linkedIds = A.linkedIds || []; B.linkedIds = B.linkedIds || [];
+        if (!A.linkedIds.includes(bId)) A.linkedIds.push(bId);
+        if (!B.linkedIds.includes(aId)) B.linkedIds.push(aId);
+      };
+      const origin = byId.get(originId);
+      const ox = origin ? origin.x : cx, oy = origin ? origin.y : cy;
+      let added = 0;
+      for (const s of sigs) {
+        const fid = remap[s.id];
+        if (!byId.has(fid)) {
+          const ang = Math.random() * Math.PI * 2, r = 55 + Math.random() * 45;
+          const d: WorkNode = {
+            ...s, id: fid, linkedIds: (s.linkedIds || []).map((x) => remap[x] || x),
+            a: ang, x: ox + Math.cos(ang) * r, y: oy + Math.sin(ang) * r, vx: 0, vy: 0, op: 0,
+          };
+          nodesRef.current.push(d); byId.set(fid, d); makeEl(d); added++;
+        }
+        link(originId, fid);
+        for (const lid of s.linkedIds || []) link(fid, remap[lid] || lid);
+      }
+      setDataVersion((v) => v + 1);
+      return added;
+    }
+    mergeRef.current = mergeNodes;
 
     function step() {
       const nodes = nodesRef.current;
@@ -264,6 +353,67 @@ export default function OrbitBoard() {
     }
   }
 
+  async function pivotOn(node: Signal) {
+    // pivot query: the email value, or the handle stripped of @ / u/
+    const q = node.handle.replace(/^@/, "").replace(/^u\//, "").trim();
+    if (!q || scanning) return;
+    setScanning(true); setScanMsg(`pivoting on ${q}…`);
+    try {
+      const cids = [...enabledRef.current].join(",");
+      const res = await fetch(`/api/scan?username=${encodeURIComponent(q)}&connectors=${encodeURIComponent(cids)}`);
+      const data = await res.json();
+      if (!res.ok || !data.signals?.length) { setScanMsg("nothing new to pivot"); return; }
+      mergeRef.current(data.signals, node.id, normId(q));
+      setScanMsg(`+ hop from ${q} (${data.signals.length})`);
+    } catch {
+      setScanMsg("network unavailable");
+    } finally {
+      setScanning(false);
+      setTimeout(() => setScanMsg(null), 4000);
+    }
+  }
+
+  async function autoExpand(startNode: Signal) {
+    if (scanning) return;
+    const MAX_HOPS = 2, CAP = 40, BREADTH = 5;
+    const visited = new Set<string>();
+    const scanOne = async (q: string, originId: string): Promise<number> => {
+      const cids = [...enabledRef.current].join(",");
+      const res = await fetch(`/api/scan?username=${encodeURIComponent(q)}&connectors=${encodeURIComponent(cids)}`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.signals?.length) return 0;
+      return mergeRef.current(data.signals, originId, normId(q));
+    };
+    setScanning(true);
+    try {
+      let frontier = [{ id: startNode.id, q: startNode.handle.replace(/^@/, "").replace(/^u\//, "").trim() }];
+      let total = 0;
+      for (let hop = 1; hop <= MAX_HOPS && total < CAP; hop++) {
+        setScanMsg(`auto-expand · hop ${hop}…`);
+        for (const f of frontier) {
+          if (total >= CAP) break;
+          const qk = normId(f.q);
+          if (!f.q || visited.has(qk)) continue;
+          visited.add(qk);
+          total += await scanOne(f.q, f.id);
+        }
+        // next hop: newly discovered email/alias identifiers not yet pivoted
+        frontier = nodesRef.current
+          .filter((n) => n.kind === "email" || n.kind === "alias")
+          .map((n) => ({ id: n.id, q: n.handle.replace(/^@/, "").trim() }))
+          .filter((f) => f.q && !visited.has(normId(f.q)))
+          .slice(0, BREADTH);
+        if (!frontier.length) break;
+      }
+      setScanMsg(`auto-expand done · +${total}`);
+    } catch {
+      setScanMsg("network unavailable");
+    } finally {
+      setScanning(false);
+      setTimeout(() => setScanMsg(null), 4000);
+    }
+  }
+
   function currentSignals(): Signal[] {
     return nodesRef.current.map((n) => {
       const { x, y, vx, vy, op, a, ...s } = n; // strip physics fields
@@ -347,6 +497,7 @@ export default function OrbitBoard() {
           <button className="btn" onClick={exportCurrent}>EXPORT</button>
           <button className="btn" onClick={() => fileRef.current?.click()}>IMPORT</button>
           <input ref={fileRef} type="file" accept="application/json,.json" onChange={importFile} style={{ display: "none" }} />
+          <button className="btn" onClick={() => openAddForm()}>+ NODE</button>
           <div className="cases-wrap">
             <button className="btn" onClick={() => setAppsOpen((o) => !o)}>
               APPS ({[...enabled].filter((id) => BUILTIN_APPS.some((a) => a.id === id)).length}/{BUILTIN_APPS.length})
@@ -376,6 +527,7 @@ export default function OrbitBoard() {
                       <span className="app-desc">{a.desc}</span>
                     </div>
                     {enabled.has(a.id) && <button className="app-open" onClick={() => openTool(a)} aria-label="open">↗</button>}
+                    {enabled.has(a.id) && <button className="app-open" onClick={() => openAddForm(a.name)} aria-label="add result" title="add a result to the board">＋</button>}
                   </div>
                 ))}
               </div>
@@ -411,6 +563,27 @@ export default function OrbitBoard() {
       </div>
       <div className="hint">seed&nbsp;· username <b>or email</b>&nbsp;&nbsp;/&nbsp;&nbsp;SCAN&nbsp;· 13 APIs + WhatsMyName + avatar pHash&nbsp;&nbsp;/&nbsp;&nbsp;click&nbsp;· evidence&nbsp;&nbsp;/&nbsp;&nbsp;drag&nbsp;· pull a body</div>
 
+      {addForm && (
+        <div className="add-overlay" onClick={() => setAddForm(null)}>
+          <div className="add-card" onClick={(e) => e.stopPropagation()}>
+            <div className="add-title">ADD PRESENCE{addForm.via ? <em> · via {addForm.via}</em> : null}</div>
+            <label className="add-field"><span>platform</span>
+              <input autoFocus value={addForm.platform} placeholder="e.g. INSTAGRAM" onChange={(e) => setAddForm({ ...addForm, platform: e.target.value })} />
+            </label>
+            <label className="add-field"><span>handle</span>
+              <input value={addForm.handle} placeholder="e.g. john.doe" onChange={(e) => setAddForm({ ...addForm, handle: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); }} />
+            </label>
+            <label className="add-field"><span>url (optional)</span>
+              <input value={addForm.url} placeholder="https://…" onChange={(e) => setAddForm({ ...addForm, url: e.target.value })} />
+            </label>
+            <div className="add-actions">
+              <button className="btn" onClick={() => setAddForm(null)}>CANCEL</button>
+              <button className="btn add-primary" onClick={submitAdd}>ADD TO BOARD</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <aside className={"inspector" + (selected ? " open" : "")} aria-hidden={!selected}>
         {selected && (
           <>
@@ -423,6 +596,10 @@ export default function OrbitBoard() {
             </div>
             <div className="track">
               <i style={{ width: selected.confidence + "%", background: selected.status === "rejected" ? "var(--reject)" : "var(--accent)" }} />
+            </div>
+            <div className="pivot-row">
+              <button className="pivot-btn" onClick={() => pivotOn(selected)} disabled={scanning}>⌖ PIVOT</button>
+              <button className="pivot-btn" onClick={() => autoExpand(selected)} disabled={scanning}>⇲ AUTO-EXPAND · 2 hops</button>
             </div>
             <div className="sect">VERIFIED EVIDENCE</div>
             <div className="evs">

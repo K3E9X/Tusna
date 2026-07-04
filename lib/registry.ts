@@ -35,6 +35,7 @@ export const BUILTIN_APPS: AppDef[] = [
   { id: "chesscom", name: "Chess.com", category: "Games", kind: "builtin", input: "username", status: "free", desc: "Public player profile." },
   { id: "wikipedia", name: "Wikipedia", category: "Reference", kind: "builtin", input: "username", status: "free", desc: "User existence + edit count." },
   { id: "whatsmyname", name: "WhatsMyName", category: "Coverage", kind: "builtin", input: "username", status: "free", desc: "600+ sites by URL pattern (unverified layer)." },
+  { id: "maigret", name: "Maigret (deep)", category: "Coverage", kind: "builtin", input: "username", status: "free", desc: "3000+ sites WITH profile data + identifier discovery. Needs the collector worker (COLLECTOR_URL)." },
   { id: "phash", name: "Avatar pHash", category: "Correlation", kind: "builtin", input: "image", status: "free", desc: "Links accounts by matching profile photos." },
 ];
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildDossier } from "@/lib/dossier";
 import { synthesize, llmEnabled } from "@/lib/llm";
+import { verifyNarrative } from "@/lib/verify";
 import type { Signal } from "@/lib/signals";
 
 export const runtime = "nodejs";
@@ -19,7 +20,8 @@ export async function POST(req: NextRequest) {
       (s.evidence || []).map((e) => `[${s.platform}] ${e.name}: ${e.detail} (${e.source})`),
     );
     const narrative = await synthesize(dossier, evidence);
-    return NextResponse.json({ configured: true, narrative });
+    const verification = narrative ? verifyNarrative(narrative, signals) : null;
+    return NextResponse.json({ configured: true, narrative, verification });
   } catch (e) {
     return NextResponse.json({ configured: true, error: String(e) }, { status: 500 });
   }

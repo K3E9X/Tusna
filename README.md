@@ -99,6 +99,8 @@ Finding nodes isn't the point; *identifying the person* is. The **DOSSIER** cons
 
 **Grounded LLM brief (optional).** In the dossier, **✦ SYNTHESIZE** produces a short intelligence brief from the evidence — provider-agnostic (OpenAI-compatible: Ollama, Groq, OpenRouter, Together…). Set `LLM_API_URL` (base, e.g. `http://host:11434/v1`), `LLM_MODEL`, and optionally `LLM_API_KEY`. The prompt enforces the anti-hallucination discipline (grounded to the collected evidence, every claim cited in `[brackets]`, doubt-biased, no invented facts) — see [`docs/llm-correlation.md`](docs/llm-correlation.md). Disabled gracefully when unset.
 
+Every brief is then **verified deterministically** (no second LLM): each `[citation]` is checked against the real sources on the board, and any email / @alias / phone the brief states is checked against the evidence. The dossier shows a verdict — **✓ grounded** (all citations valid, no unsupported facts) or **⚠ warnings** listing the unknown citations and the facts *not in evidence*. So even if a model drifts, a hallucinated name-source or invented email is caught and shown, not trusted.
+
 ## Persistence
 
 Investigations can be **saved and reloaded** (SAVE / CASES in the top bar). Storage is hybrid:

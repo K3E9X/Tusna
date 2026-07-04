@@ -7,6 +7,7 @@ import { BUILTIN_APPS, MANUAL_APPS, type AppDef } from "@/lib/registry";
 import { loadEnabled, saveEnabled } from "@/lib/apps";
 import { normId } from "@/lib/extract";
 import { buildDossier, type Dossier } from "@/lib/dossier";
+import type { Verification } from "@/lib/verify";
 
 interface WorkNode extends Signal {
   x: number; y: number; vx: number; vy: number; op: number; a: number;
@@ -40,11 +41,12 @@ export default function OrbitBoard() {
   const [focusId, setFocusId] = useState<string | null>(null);
   const [dossier, setDossier] = useState<Dossier | null>(null);
   const [narrative, setNarrative] = useState<string | null>(null);
+  const [verification, setVerification] = useState<Verification | null>(null);
   const [llmBusy, setLlmBusy] = useState(false);
 
   async function synthesizeDossier() {
     if (llmBusy) return;
-    setLlmBusy(true); setNarrative(null);
+    setLlmBusy(true); setNarrative(null); setVerification(null);
     try {
       const res = await fetch("/api/synthesize", {
         method: "POST", headers: { "content-type": "application/json" },
@@ -53,6 +55,7 @@ export default function OrbitBoard() {
       const data = await res.json();
       if (!data.configured) { setNarrative("⚙ LLM not configured — set LLM_API_URL and LLM_MODEL (Ollama / Groq / OpenRouter…) as Vercel env vars."); return; }
       setNarrative(data.narrative || "no narrative returned.");
+      setVerification(data.verification || null);
     } catch {
       setNarrative("LLM request failed.");
     } finally {
@@ -724,9 +727,9 @@ export default function OrbitBoard() {
       )}
 
       {dossier && (
-        <div className="add-overlay" onClick={() => { setDossier(null); setNarrative(null); }}>
+        <div className="add-overlay" onClick={() => { setDossier(null); setNarrative(null); setVerification(null); }}>
           <div className="dossier" onClick={(e) => e.stopPropagation()}>
-            <button className="insp-close" onClick={() => { setDossier(null); setNarrative(null); }} aria-label="close">✕</button>
+            <button className="insp-close" onClick={() => { setDossier(null); setNarrative(null); setVerification(null); }} aria-label="close">✕</button>
             <div className="insp-plat">DOSSIER · synthesized identity</div>
             <div className="dossier-name">{dossier.name || "— name not established —"}</div>
             {dossier.nameAlts.length > 0 && <div className="dossier-alts">also: {dossier.nameAlts.join(" · ")}</div>}
@@ -738,6 +741,24 @@ export default function OrbitBoard() {
               {llmBusy ? "✦ synthesizing…" : "✦ SYNTHESIZE (grounded LLM brief)"}
             </button>
             {narrative && <div className="narrative">{narrative}</div>}
+            {verification && (
+              <div className={"verify " + verification.verdict}>
+                {verification.verdict === "grounded" ? (
+                  <span>✓ grounded · {verification.validCitations}/{verification.totalCitations} citations valid · no unsupported facts</span>
+                ) : (
+                  <>
+                    <span>⚠ {verification.validCitations}/{verification.totalCitations} citations valid
+                      {verification.unsupportedFacts.length > 0 && ` · ${verification.unsupportedFacts.length} unsupported fact(s) flagged`}</span>
+                    {verification.citations.filter((c) => !c.valid).length > 0 && (
+                      <div className="verify-list">unknown citations: {verification.citations.filter((c) => !c.valid).map((c) => c.label).join(", ")}</div>
+                    )}
+                    {verification.unsupportedFacts.length > 0 && (
+                      <div className="verify-list">not in evidence: {verification.unsupportedFacts.join(", ")}</div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
             <div className="dossier-grid">
               {dossierBlock("EMAILS", dossier.emails)}
               {dossierBlock("PHONES", dossier.phones)}

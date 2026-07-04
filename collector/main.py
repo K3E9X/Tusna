@@ -33,6 +33,8 @@ def run_maigret(username: str, top: int, timeout: int) -> dict:
         "--json", "simple",
         "--folderoutput", out_dir,
         "--no-progressbar",
+        "--no-color",
+        "--no-autoupdate",  # DB is baked/updated at image build; keep per-call fast
         "--timeout", str(timeout),
         "--top-sites", str(top),
         "--no-recursion",

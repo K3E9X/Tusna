@@ -36,20 +36,30 @@ docker build -t tusna-collector collector/
 docker run -p 8000:8000 tusna-collector
 ```
 
-## Deploy (free tiers)
+## Deploy — one click (Render, free)
 
-Any host that runs a Docker container or a Python web service works:
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/K3E9X/Tusna)
 
-- **Render** — New → Web Service → this repo, root `collector/`, it detects the Dockerfile. Free instance.
-- **Railway / Fly.io** — `fly launch` / Railway "Deploy from repo" pointed at `collector/`.
+The repo ships a [`render.yaml`](../render.yaml) blueprint, so:
 
-Then, in your **Tusna Vercel project**, set env vars:
+1. Click the button (or Render → **New → Blueprint** → pick this repo). Render builds
+   `collector/Dockerfile`, runs the free web service, and **auto-generates** a
+   `COLLECTOR_TOKEN`.
+2. Copy the service URL (e.g. `https://tusna-collector.onrender.com`) and the generated
+   token (Render → the service → **Environment**).
+3. In your **Tusna Vercel project → Settings → Environment Variables**, add:
+   - `COLLECTOR_URL` = the worker URL
+   - `COLLECTOR_TOKEN` = the same token
+   Redeploy Tusna. The **"Maigret (deep)"** app now feeds every username scan.
 
-- `COLLECTOR_URL` = the worker's public URL (e.g. `https://tusna-collector.onrender.com`)
-- optionally `COLLECTOR_TOKEN` = a shared secret (also set `COLLECTOR_TOKEN` on the worker)
+Other hosts work too (Railway "Deploy from repo" → root `collector/`, or `fly launch`
+in `collector/`).
 
-Tusna auto-detects `COLLECTOR_URL`: when present, a username scan pulls Maigret's rich
-data; when absent, it falls back to the built-in connectors. Nothing else to change.
+Tusna auto-detects `COLLECTOR_URL`: present → scans pull Maigret's rich data; absent →
+built-in connectors. Nothing else to change.
+
+> First call after the free instance sleeps is slow (cold start + Maigret warm-up).
+> Keep `top` at 200–400 for a snappy scan.
 
 ## Notes
 

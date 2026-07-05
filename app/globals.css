@@ -166,8 +166,10 @@ body {
 .add-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 .add-primary { border-color: var(--accent) !important; color: var(--accent) !important; }
 
-.viewtoggle { display: flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
-.viewtoggle button { background: transparent; border: 0; color: var(--ink-3); font-family: var(--mono); font-size: 10px; letter-spacing: .16em; padding: 7px 11px; cursor: pointer; }
+.viewtoggle { display: flex; flex: none; border: 1px solid var(--ink-4); border-radius: 3px; overflow: hidden; }
+.viewtoggle button { background: transparent; border: 0; border-left: 1px solid var(--line-soft); color: var(--ink-2); font-family: var(--mono); font-size: 10px; letter-spacing: .16em; padding: 7px 12px; cursor: pointer; transition: .15s; }
+.viewtoggle button:first-child { border-left: 0; }
+.viewtoggle button:hover { color: var(--ink); background: var(--void-2); }
 .viewtoggle button.on { background: var(--accent); color: #04201e; }
 
 .tablewrap { position: fixed; left: 0; right: 0; top: 66px; bottom: 0; z-index: 15; display: flex; flex-direction: column; background: var(--void); }
@@ -328,3 +330,33 @@ body {
 .add-card.wide, .add-card:has(.add-cols) { width: 460px; max-width: 94vw; }
 .add-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .add-card { max-height: 88vh; overflow: auto; }
+
+/* ---- Toolbar dropdown menus (TOOLS / DATA) ---- */
+.readout { flex-wrap: wrap; justify-content: flex-end; gap: 10px 8px; }
+.rd-msg { color: var(--accent); }
+.btn.open { border-color: var(--accent); color: var(--accent); }
+.menu-backdrop { position: fixed; inset: 0; z-index: 30; }
+.menu-pop { position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: 250px;
+  background: var(--panel); backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: 4px;
+  padding: 5px; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+.menu-item { display: block; width: 100%; text-align: left; background: transparent; border: 0;
+  padding: 9px 10px; border-radius: 3px; cursor: pointer; font-family: var(--mono); }
+.menu-item:hover { background: var(--void-2); }
+.menu-item:disabled { opacity: .45; cursor: default; }
+.menu-item b { display: block; font-size: 12px; font-weight: 400; color: var(--ink); letter-spacing: .04em; }
+.menu-item:hover b { color: var(--accent); }
+.menu-item span { display: block; font-size: 9.5px; color: var(--ink-3); margin-top: 2px; line-height: 1.4; }
+
+/* ---- Guide overlay ---- */
+.guide { width: min(600px, 94vw); max-height: 88vh; overflow-y: auto; position: relative;
+  background: var(--panel); backdrop-filter: blur(16px); border: 1px solid var(--accent); border-radius: 6px;
+  padding: 26px 28px; box-shadow: 0 24px 70px rgba(0,0,0,.55); }
+.guide-lead { font-size: 13px; line-height: 1.7; color: var(--ink-2); margin-top: 12px; }
+.guide-lead b { color: var(--ink); font-weight: 400; }
+.guide-sect { font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--accent); margin: 24px 0 8px; }
+.guide-steps, .guide-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px; }
+.guide-steps li, .guide-list li { font-size: 12.5px; line-height: 1.6; color: var(--ink-2); }
+.guide-steps li b, .guide-list li b { color: var(--ink); font-weight: 400; }
+.guide-list { list-style: none; padding-left: 4px; }
+.guide-list li { position: relative; padding-left: 16px; }
+.guide-list li::before { content: ""; position: absolute; left: 0; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: .6; }

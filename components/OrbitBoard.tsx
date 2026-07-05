@@ -53,6 +53,8 @@ export default function OrbitBoard() {
   const [view, setView] = useState<"board" | "table" | "timeline" | "map">("board");
   const [monitor, setMonitor] = useState<MonitorDiff | null>(null);
   const [monitoring, setMonitoring] = useState(false);
+  const [barMenu, setBarMenu] = useState<"tools" | "data" | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [tableSort, setTableSort] = useState<{ key: string; dir: 1 | -1 }>({ key: "tier", dir: 1 });
   const [tableFilter, setTableFilter] = useState("");
   const [narrative, setNarrative] = useState<string | null>(null);
@@ -890,22 +892,40 @@ export default function OrbitBoard() {
         </div>
         <div className="flex" />
         <div className="readout">
-          {deepStatus && <span style={{ color: "var(--accent)" }}>{deepStatus}</span>}
-          {scanMsg && <span style={{ color: "var(--accent)" }}>{scanMsg}</span>}
+          {(deepStatus || scanMsg) && <span className="rd-msg">{deepStatus || scanMsg}</span>}
           <span className="hide-sm"><span className="dotpulse" /><b>{total}</b> signals</span>
-          <span><b style={{ color: "var(--confirm)" }}>{confirmedCount}</b> confirmed</span>
-          <button className="btn" onClick={runScan} disabled={scanning}>{scanning ? "…" : "↻ SCAN"}</button>
-          <button className="btn btn-primary" onClick={investigate} disabled={scanning}>⚡ INVESTIGATE</button>
-          <button className="btn" onClick={deepScan}>⛏ DEEP</button>
-          <button className="btn" onClick={openDossier}>▤ DOSSIER</button>
-          <button className="btn" onClick={imageForensics}>⌖ IMG</button>
-          <button className="btn" onClick={faceMatch} disabled={faceBusy}>◉ FACES</button>
-          <button className="btn" onClick={runMonitor} disabled={monitoring}>◔ MONITOR</button>
-          <button className="btn" onClick={saveCurrent}>SAVE</button>
-          <button className="btn" onClick={exportCurrent}>EXPORT</button>
-          <button className="btn" onClick={() => fileRef.current?.click()}>IMPORT</button>
+          <span className="hide-sm"><b style={{ color: "var(--confirm)" }}>{confirmedCount}</b> confirmed</span>
+
+          <button className="btn btn-primary" onClick={investigate} disabled={scanning}>INVESTIGATE</button>
+          <button className="btn" onClick={runScan} disabled={scanning}>{scanning ? "…" : "SCAN"}</button>
+
+          <div className="cases-wrap">
+            <button className={"btn" + (barMenu === "tools" ? " open" : "")} onClick={() => setBarMenu((m) => (m === "tools" ? null : "tools"))}>TOOLS ▾</button>
+            {barMenu === "tools" && (
+              <div className="menu-pop">
+                <button className="menu-item" onClick={() => { setBarMenu(null); deepScan(); }}><b>Deep scan</b><span>3000+ sites via the collector worker</span></button>
+                <button className="menu-item" onClick={() => { setBarMenu(null); imageForensics(); }}><b>Image metadata</b><span>EXIF / GPS from a photo URL</span></button>
+                <button className="menu-item" disabled={faceBusy} onClick={() => { setBarMenu(null); faceMatch(); }}><b>Face match</b><span>Same person across different photos</span></button>
+                <button className="menu-item" disabled={monitoring} onClick={() => { setBarMenu(null); runMonitor(); }}><b>Monitor changes</b><span>Re-scan and diff since last snapshot</span></button>
+              </div>
+            )}
+          </div>
+
+          <button className="btn" onClick={openDossier}>DOSSIER</button>
+          <button className="btn" onClick={() => openAddForm()}>ADD FINDING</button>
+
+          <div className="cases-wrap">
+            <button className={"btn" + (barMenu === "data" ? " open" : "")} onClick={() => setBarMenu((m) => (m === "data" ? null : "data"))}>DATA ▾</button>
+            {barMenu === "data" && (
+              <div className="menu-pop">
+                <button className="menu-item" onClick={() => { setBarMenu(null); saveCurrent(); }}><b>Save case</b><span>Store the current board</span></button>
+                <button className="menu-item" onClick={() => { setBarMenu(null); exportCurrent(); }}><b>Export JSON</b><span>Download the case file</span></button>
+                <button className="menu-item" onClick={() => { setBarMenu(null); fileRef.current?.click(); }}><b>Import JSON</b><span>Load a case file</span></button>
+              </div>
+            )}
+          </div>
           <input ref={fileRef} type="file" accept="application/json,.json" onChange={importFile} style={{ display: "none" }} />
-          <button className="btn" onClick={() => openAddForm()}>+ CAPTURE</button>
+
           <div className="cases-wrap">
             <button className="btn" onClick={() => setAppsOpen((o) => !o)}>
               APPS ({[...enabled].filter((id) => BUILTIN_APPS.some((a) => a.id === id)).length}/{BUILTIN_APPS.length})
@@ -961,6 +981,8 @@ export default function OrbitBoard() {
               </div>
             )}
           </div>
+          <button className="btn" onClick={() => setGuideOpen(true)}>GUIDE</button>
+          {barMenu && <div className="menu-backdrop" onClick={() => setBarMenu(null)} />}
         </div>
       </div>
 
@@ -971,8 +993,65 @@ export default function OrbitBoard() {
               <div className="l" key={k}><span className="tick" />{BANDS[k].label}</div>
             ))}
           </div>
-          <div className="hint">seed&nbsp;· username <b>· email · phone · name</b>&nbsp;&nbsp;/&nbsp;&nbsp;⚡ INVESTIGATE&nbsp;&nbsp;/&nbsp;&nbsp;right-click&nbsp;· pivot · focus&nbsp;&nbsp;/&nbsp;&nbsp;▤ DOSSIER</div>
+          <div className="hint">Enter a seed (username, email, phone or name) and press INVESTIGATE&nbsp;&nbsp;/&nbsp;&nbsp;click a node for its evidence&nbsp;&nbsp;/&nbsp;&nbsp;right-click to pivot&nbsp;&nbsp;/&nbsp;&nbsp;new here? open GUIDE</div>
         </>
+      )}
+
+      {guideOpen && (
+        <div className="add-overlay" onClick={() => setGuideOpen(false)}>
+          <div className="guide" onClick={(e) => e.stopPropagation()}>
+            <button className="insp-close" onClick={() => setGuideOpen(false)} aria-label="close">✕</button>
+            <div className="insp-plat">GUIDE · how to run an investigation</div>
+            <div className="guide-lead">
+              Tusna takes one <b>seed</b> — a username, email, phone or full name — collects public
+              footprint across many sources, and correlates it into a single identity: the accounts,
+              emails, locations, relationships and leaks that belong to one person. You stay in control;
+              nothing is auto-confirmed.
+            </div>
+
+            <div className="guide-sect">Start</div>
+            <ol className="guide-steps">
+              <li><b>Type a seed</b> in the top-left field and press <b>INVESTIGATE</b>. Tusna scans, correlates and expands automatically, then opens the dossier.</li>
+              <li>Prefer manual control? Use <b>SCAN</b> for a single pass, then expand yourself.</li>
+            </ol>
+
+            <div className="guide-sect">Read the graph</div>
+            <ol className="guide-steps">
+              <li><b>Click any node</b> to open the inspector: its evidence, sources, and honest tier (VERIFIED / PROBABLE / POSSIBLE / WEAK — derived from evidence, not a fake percentage).</li>
+              <li><b>Judge it</b>: CONFIRM, REVIEW or REJECT. Your decision is saved and re-applied on the next scan of the same seed.</li>
+              <li><b>Right-click a node</b> to Pivot, Auto-expand, set it as the new seed, or focus its sub-graph.</li>
+            </ol>
+
+            <div className="guide-sect">Switch views (top-left, next to the seed)</div>
+            <ul className="guide-list">
+              <li><b>ORBIT</b> — the identity as a gravitational map (confidence = distance to the seed).</li>
+              <li><b>TABLE</b> — the workhorse: every node, sortable and filterable. Start here if you want a plain list.</li>
+              <li><b>TIMELINE</b> — footprint ordered by account-creation date.</li>
+              <li><b>MAP</b> — every resolved location on a real map.</li>
+            </ul>
+
+            <div className="guide-sect">Enrich (TOOLS menu)</div>
+            <ul className="guide-list">
+              <li><b>Deep scan</b> — 3000+ sites with profile data (needs the collector worker).</li>
+              <li><b>Image metadata</b> — pull EXIF / GPS from any photo URL.</li>
+              <li><b>Face match</b> — find the same person across different photos.</li>
+              <li><b>Monitor changes</b> — re-scan and see what appeared, vanished or changed.</li>
+            </ul>
+
+            <div className="guide-sect">Add your own findings</div>
+            <div className="guide-lead">
+              Found an Instagram, Facebook or LinkedIn account by hand? <b>ADD FINDING</b>. Tusna runs
+              it through the same engine — linking it by handle, name, email and avatar, mining the bio,
+              and mapping the location — so your manual work fuses with what Tusna found on its own.
+            </div>
+
+            <div className="guide-sect">Finish</div>
+            <ul className="guide-list">
+              <li><b>DOSSIER</b> — the synthesized identity, plus an optional grounded LLM brief (every claim cited, verified against the evidence).</li>
+              <li><b>DATA menu</b> — Save the case, Export or Import as JSON.</li>
+            </ul>
+          </div>
+        </div>
       )}
 
       {addForm && (
@@ -1043,8 +1122,8 @@ export default function OrbitBoard() {
               <i style={{ width: selected.confidence + "%", background: selected.status === "rejected" ? "var(--reject)" : "var(--accent)" }} />
             </div>
             <div className="pivot-row">
-              <button className="pivot-btn" onClick={() => pivotOn(selected)} disabled={scanning}>⌖ PIVOT</button>
-              <button className="pivot-btn" onClick={() => autoExpand(selected)} disabled={scanning}>⇲ AUTO-EXPAND · 2 hops</button>
+              <button className="pivot-btn" onClick={() => pivotOn(selected)} disabled={scanning}>PIVOT</button>
+              <button className="pivot-btn" onClick={() => autoExpand(selected)} disabled={scanning}>AUTO-EXPAND · 2 hops</button>
             </div>
             <div className="sect">VERIFIED EVIDENCE</div>
             <div className="evs">
@@ -1067,7 +1146,7 @@ export default function OrbitBoard() {
               <>
                 <div className="sect">LOCATION</div>
                 <div className="insp-geo">
-                  <span className="geo-coord">⌖ {selected.place.lat.toFixed(4)}, {selected.place.lon.toFixed(4)}</span>
+                  <span className="geo-coord">{selected.place.lat.toFixed(4)}, {selected.place.lon.toFixed(4)}</span>
                   {selected.place.label && <span className="geo-label">{selected.place.label}</span>}
                   <button className="mini-link" onClick={() => setView("map")}>view on map →</button>
                 </div>
@@ -1118,11 +1197,11 @@ export default function OrbitBoard() {
             <div className="ctx-menu" style={{ left: Math.min(menu.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 200), top: menu.y }}>
               <div className="ctx-head">{n.platform}</div>
               <button onClick={() => { setSelectedId(n.id); setMenu(null); }}>Inspect evidence</button>
-              <button onClick={() => { setMenu(null); pivotOn(n); }}>⌖ Pivot</button>
-              <button onClick={() => { setMenu(null); autoExpand(n); }}>⇲ Auto-expand · 2 hops</button>
-              {n.url && <button onClick={() => { window.open(n.url, "_blank", "noopener,noreferrer"); setMenu(null); }}>↗ Open profile</button>}
-              <button onClick={() => { seedRef.current = q; setSeed(q); setMenu(null); runScan(); }}>◎ Set as seed &amp; rescan</button>
-              <button onClick={() => { setFocusId((f) => (f === n.id ? null : n.id)); setMenu(null); }}>◍ Focus sub-graph</button>
+              <button onClick={() => { setMenu(null); pivotOn(n); }}>Pivot</button>
+              <button onClick={() => { setMenu(null); autoExpand(n); }}>Auto-expand · 2 hops</button>
+              {n.url && <button onClick={() => { window.open(n.url, "_blank", "noopener,noreferrer"); setMenu(null); }}>Open profile</button>}
+              <button onClick={() => { seedRef.current = q; setSeed(q); setMenu(null); runScan(); }}>Set as seed &amp; rescan</button>
+              <button onClick={() => { setFocusId((f) => (f === n.id ? null : n.id)); setMenu(null); }}>Focus sub-graph</button>
               <button className="ctx-danger" onClick={() => { removeNodeRef.current(n.id); setMenu(null); }}>✕ Remove</button>
             </div>
           </>
@@ -1130,13 +1209,13 @@ export default function OrbitBoard() {
       })()}
 
       {focusId && (
-        <button className="focus-chip" onClick={() => setFocusId(null)}>◍ focus active · clear</button>
+        <button className="focus-chip" onClick={() => setFocusId(null)}>focus active · clear</button>
       )}
 
       {monitor && (
         <div className="monitor-panel">
           <button className="insp-close" onClick={() => setMonitor(null)} aria-label="close">✕</button>
-          <div className="mon-title">◔ CHANGES SINCE LAST SNAPSHOT</div>
+          <div className="mon-title">CHANGES SINCE LAST SNAPSHOT</div>
           <div className="mon-sum">{monitor.summary}</div>
           {!monitor.hasChanges && <div className="mon-empty">Nothing moved. The footprint is stable.</div>}
           {monitor.added.map((c, i) => (
@@ -1170,11 +1249,11 @@ export default function OrbitBoard() {
             </div>
             {dossier.primaryCluster && (
               <div className={"dossier-cluster t-" + dossier.primaryCluster.tier}>
-                ◆ {dossier.primaryCluster.size} accounts resolved as one identity · {dossier.primaryCluster.tier.toUpperCase()}
+                {dossier.primaryCluster.size} accounts resolved as one identity · {dossier.primaryCluster.tier.toUpperCase()}
               </div>
             )}
             <button className="pivot-btn" style={{ marginTop: 16 }} onClick={synthesizeDossier} disabled={llmBusy}>
-              {llmBusy ? "✦ synthesizing…" : "✦ SYNTHESIZE (grounded LLM brief)"}
+              {llmBusy ? "synthesizing…" : "SYNTHESIZE (grounded LLM brief)"}
             </button>
             {narrative && <div className="narrative">{narrative}</div>}
             {verification && (

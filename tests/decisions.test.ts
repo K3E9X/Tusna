@@ -18,3 +18,18 @@ test("applyDecisions counts only real changes", () => {
   const sigs = [mk("a", "confirmed")];
   assert.equal(applyDecisions(sigs, { a: "confirmed" }), 0);
 });
+
+import { applyDecisionsFiltered, suppressedIds } from "../lib/decisions.ts";
+
+test("applyDecisionsFiltered drops rejected AND removed (never proposed again)", () => {
+  const sigs = [mk("a", "candidate"), mk("b", "review"), mk("c", "review"), mk("d", "candidate")];
+  const { signals, suppressed } = applyDecisionsFiltered(sigs, { a: "rejected", b: "removed", c: "confirmed" });
+  assert.equal(suppressed, 2);
+  assert.deepEqual(signals.map((s) => s.id), ["c", "d"]); // a,b gone
+  assert.equal(signals[0].status, "confirmed"); // c re-applied
+});
+
+test("suppressedIds returns rejected + removed", () => {
+  const s = suppressedIds({ a: "rejected", b: "removed", c: "confirmed", d: "review" });
+  assert.deepEqual([...s].sort(), ["a", "b"]);
+});

@@ -12,8 +12,10 @@ import type { Verification } from "@/lib/verify";
 import { scoreEvidence, TIER_LABEL } from "@/lib/scoring";
 import { reverseImageLinks } from "@/lib/reverseimage";
 import { diffSnapshots, type MonitorDiff } from "@/lib/monitor";
-import { loadDecisions, saveDecision, applyDecisions } from "@/lib/decisions";
+import { loadDecisions, saveDecision, applyDecisionsFiltered, suppressedIds } from "@/lib/decisions";
 import { shouldWipeBeforeScan } from "@/lib/board";
+import { looksLikeName } from "@/lib/name";
+import { buildTimeline } from "@/lib/timeline";
 
 // Leaflet touches window on import — load the map only in the browser.
 const MapView = dynamic(() => import("./MapView"), { ssr: false });
@@ -59,6 +61,8 @@ export default function OrbitBoard() {
   const [isDemo, setIsDemo] = useState(true); // the board starts with demo data
   const demoRef = useRef(true);
   const lastScanRef = useRef<string>("");
+  const suppressedRef = useRef<Set<string>>(new Set()); // rejected/removed → never re-propose
+  const chainedRef = useRef<Set<string>>(new Set());    // queries already auto-chained
   const [tableSort, setTableSort] = useState<{ key: string; dir: 1 | -1 }>({ key: "tier", dir: 1 });
   const [tableFilter, setTableFilter] = useState("");
   const [narrative, setNarrative] = useState<string | null>(null);
@@ -365,6 +369,7 @@ export default function OrbitBoard() {
 
     // append a single node into the live sim (used by "add presence")
     function addNode(s: Signal) {
+      if (suppressedRef.current.has(s.id)) return; // analyst rejected/removed it
       if (nodesRef.current.some((n) => n.id === s.id)) return; // no dup
       const a = Math.random() * Math.PI * 2;
       const edge = Math.max(W, H) * 0.7;
@@ -381,7 +386,7 @@ export default function OrbitBoard() {
     function ingestCorrelation(manual: Signal, extracted: Signal[], links: [string, string][]) {
       const byId = new Map(nodesRef.current.map((n) => [n.id, n]));
       const spawnNear = (s: Signal, near?: WorkNode) => {
-        if (byId.has(s.id)) return;
+        if (byId.has(s.id) || suppressedRef.current.has(s.id)) return;
         const ang = Math.random() * Math.PI * 2, r = 60 + Math.random() * 40;
         const ox = near ? near.x : cx, oy = near ? near.y : cy;
         const d: WorkNode = { ...s, a: ang, x: ox + Math.cos(ang) * r, y: oy + Math.sin(ang) * r, vx: 0, vy: 0, op: 0 };
@@ -425,6 +430,7 @@ export default function OrbitBoard() {
       let added = 0;
       for (const s of sigs) {
         const fid = remap[s.id];
+        if (suppressedRef.current.has(fid) || suppressedRef.current.has(s.id)) continue; // rejected/removed
         if (!byId.has(fid)) {
           const ang = Math.random() * Math.PI * 2, r = 55 + Math.random() * 45;
           const d: WorkNode = {
@@ -449,6 +455,10 @@ export default function OrbitBoard() {
       if (el) { el.remove(); delete elsRef.current[id]; }
       setSelectedId((cur) => (cur === id ? null : cur));
       setDataVersion((v) => v + 1);
+      // remembering the removal: never propose it again on this seed
+      suppressedRef.current.add(id);
+      const seed = seedRef.current.trim();
+      if (seed) saveDecision(seed, id, "removed").catch(() => {});
     }
     removeNodeRef.current = removeNode;
 
@@ -582,6 +592,53 @@ export default function OrbitBoard() {
     // feedback loop: remember this judgment for the current seed so re-scans respect it
     const seed = seedRef.current.trim();
     if (seed) saveDecision(seed, id, status).catch(() => {});
+    // rejecting = don't propose again (this session's merges skip it too)
+    if (status === "rejected") suppressedRef.current.add(id);
+    // confirming a lead = follow it: chain the investigation onto its new identifiers
+    if (status === "confirmed") chainFromNode(n);
+  }
+
+  // OSINT chaining: confirming a node means "this is really them" — so take the NEW
+  // identifiers it exposes (a different username, a real name, a linked email/alias)
+  // and search from those, merging the leads onto the confirmed node. This is how an
+  // investigation walks from one fact to the next instead of staying on the seed.
+  async function chainFromNode(node: WorkNode) {
+    if (scanning) return;
+    const seedN = normId(seedRef.current.trim());
+    const queries: { q: string; why: string }[] = [];
+    const handle = node.handle.replace(/^@/, "").replace(/^u\//, "").trim();
+    if (handle && normId(handle) !== seedN && !chainedRef.current.has("h:" + normId(handle))) {
+      queries.push({ q: handle, why: `username ${node.handle}` });
+    }
+    if (node.displayName && looksLikeName(node.displayName) && !chainedRef.current.has("n:" + normId(node.displayName))) {
+      queries.push({ q: node.displayName, why: `name "${node.displayName}"` });
+    }
+    for (const lid of node.linkedIds || []) {
+      const ln = nodesRef.current.find((x) => x.id === lid);
+      if (ln && (ln.kind === "email" || ln.kind === "alias")) {
+        const q = ln.handle.replace(/^@/, "").trim();
+        if (q && !chainedRef.current.has("x:" + normId(q))) queries.push({ q, why: `${ln.kind} ${ln.handle}` });
+      }
+    }
+    const pick = queries.slice(0, 2);
+    if (!pick.length) return;
+    setScanning(true); setScanMsg(`chaining from ${node.handle}: ${pick.map((p) => p.why).join(", ")}…`);
+    let added = 0;
+    try {
+      const cids = [...enabledRef.current].join(",");
+      for (const { q } of pick) {
+        chainedRef.current.add("h:" + normId(q)); chainedRef.current.add("n:" + normId(q)); chainedRef.current.add("x:" + normId(q));
+        const res = await fetch(`/api/scan?username=${encodeURIComponent(q)}&connectors=${encodeURIComponent(cids)}`);
+        const data = await res.json().catch(() => null);
+        if (data?.signals?.length) added += mergeRef.current(data.signals, node.id, normId(q));
+      }
+      setScanMsg(added ? `chained ${pick.length} lead(s) → +${added} new node(s) to review` : "chain: nothing new found");
+    } catch {
+      setScanMsg("network unavailable");
+    } finally {
+      setScanning(false);
+      setTimeout(() => setScanMsg(null), 5000);
+    }
   }
 
   function clearDemoState() {
@@ -604,11 +661,17 @@ export default function OrbitBoard() {
       if (!res.ok) { setScanMsg(data?.error || "scan failed"); return; }
       lastScanRef.current = u;
       if (!data.signals?.length) { setScanMsg("no public presence found"); return; }
-      // feedback loop: re-apply the analyst's prior confirm/reject decisions
-      let restored = 0;
-      try { restored = applyDecisions(data.signals, await loadDecisions(u)); } catch { /* none */ }
-      rebuildRef.current(data.signals, true);
-      setScanMsg(`${data.signals.length} real presence(s)` + (restored ? ` · ${restored} prior decision(s) restored` : ""));
+      // feedback loop: drop what the analyst rejected/removed, re-apply confirmations
+      let suppressed = 0;
+      let sigs = data.signals as Signal[];
+      try {
+        const dec = await loadDecisions(u);
+        suppressedRef.current = suppressedIds(dec);
+        const r = applyDecisionsFiltered(sigs, dec);
+        sigs = r.signals; suppressed = r.suppressed;
+      } catch { /* none */ }
+      rebuildRef.current(sigs, true);
+      setScanMsg(`${sigs.length} real presence(s)` + (suppressed ? ` · ${suppressed} suppressed (your prior decisions)` : ""));
     } catch {
       setScanMsg("network unavailable");
     } finally {
@@ -633,10 +696,11 @@ export default function OrbitBoard() {
       const res = await fetch(`/api/scan?username=${encodeURIComponent(u)}&connectors=${encodeURIComponent(cids)}`);
       const data = await res.json();
       if (!res.ok || !data.signals) { setScanMsg("monitor scan failed"); return; }
-      try { applyDecisions(data.signals as Signal[], await loadDecisions(u)); } catch { /* none */ }
-      const diff = diffSnapshots(before, data.signals as Signal[]);
+      let sigs = data.signals as Signal[];
+      try { const dec = await loadDecisions(u); suppressedRef.current = suppressedIds(dec); sigs = applyDecisionsFiltered(sigs, dec).signals; } catch { /* none */ }
+      const diff = diffSnapshots(before, sigs);
       setMonitor(diff);
-      rebuildRef.current(data.signals, false); // adopt the fresh state as current
+      rebuildRef.current(sigs, false); // adopt the fresh state as current
       setScanMsg(diff.summary);
     } catch {
       setScanMsg("network unavailable");
@@ -858,34 +922,40 @@ export default function OrbitBoard() {
 
       {view === "timeline" && (() => {
         const all = currentSignals();
-        const dated = all
-          .filter((s) => s.createdAt && /\d{4}/.test(s.createdAt))
-          .map((s) => ({ s, d: s.createdAt!.slice(0, 10), y: s.createdAt!.slice(0, 4), tier: s.tier || scoreEvidence(s.evidence).tier }))
-          .sort((a, b) => a.d.localeCompare(b.d));
-        const years: { y: string; rows: typeof dated }[] = [];
-        for (const r of dated) { const g = years.find((x) => x.y === r.y); if (g) g.rows.push(r); else years.push({ y: r.y, rows: [r] }); }
+        const events = buildTimeline(all, (s) => s.tier || scoreEvidence(s.evidence).tier);
+        const years: { y: string; rows: typeof events }[] = [];
+        for (const e of events) { const g = years.find((x) => x.y === e.year); if (g) g.rows.push(e); else years.push({ y: e.year, rows: [e] }); }
+        const span = events.length ? `${events[0].year}–${events[events.length - 1].year}` : "";
+        const typeLabel: Record<string, string> = { account: "created", photo: "photo", leak: "leak", record: "event" };
         return (
           <div className="tablewrap">
-            <div className="table-toolbar"><span className="table-count">{dated.length} dated events · {all.length - dated.length} undated</span></div>
+            <div className="table-toolbar">
+              <span className="table-count">{events.length} dated event(s){span ? ` · ${span}` : ""}</span>
+              <span className="map-hint">account creation · EXIF capture dates · breach dates</span>
+            </div>
             <div className="table-scroll">
-              {dated.length === 0 && <div className="t-empty" style={{ padding: 40, textAlign: "center" }}>no dated footprint yet — scan accounts that expose a creation date (GitHub, Reddit, HN…)</div>}
-              <div className="timeline">
-                {years.map((g) => (
-                  <div className="tl-year" key={g.y}>
-                    <div className="tl-y">{g.y}</div>
-                    <div className="tl-rows">
-                      {g.rows.map((r, i) => (
-                        <div className="tl-row" key={i} onClick={() => setSelectedId(r.s.id)}>
-                          <span className="tl-date">{r.d}</span>
-                          <span className={"da-tier t-" + r.tier}>{r.tier}</span>
-                          <span className="tl-plat">{r.s.platform}</span>
-                          <span className="tl-handle">{r.s.handle}</span>
-                        </div>
-                      ))}
+              {events.length === 0 && <div className="t-empty" style={{ padding: 40, textAlign: "center" }}>No dated footprint yet. Scan accounts that expose a creation date (GitHub, Reddit, HN, Bluesky…), run a leak source, or use Image metadata on a photo with an EXIF date.</div>}
+              {events.length > 0 && (
+                <div className="tline">
+                  {years.map((g) => (
+                    <div className="tline-year" key={g.y}>
+                      <div className="tline-ymark">{g.y}</div>
+                      <div className="tline-events">
+                        {g.rows.map((e, i) => (
+                          <div className={"tline-ev tv-" + e.type} key={i} onClick={() => setSelectedId(e.signalId)}>
+                            <span className="tline-dot" />
+                            <span className="tline-date">{e.iso}</span>
+                            <span className={"tline-type k-" + e.type}>{typeLabel[e.type]}</span>
+                            <span className="tline-label">{e.label}</span>
+                            <span className="tline-who">{e.platform} · {e.handle}</span>
+                            <span className={"da-tier t-" + e.tier}>{e.tier}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -1039,7 +1109,7 @@ export default function OrbitBoard() {
             <div className="guide-sect">Read the graph</div>
             <ol className="guide-steps">
               <li><b>Click any node</b> to open the inspector: its evidence, sources, and honest tier (VERIFIED / PROBABLE / POSSIBLE / WEAK — derived from evidence, not a fake percentage).</li>
-              <li><b>Judge it</b>: CONFIRM, REVIEW or REJECT. Your decision is saved and re-applied on the next scan of the same seed.</li>
+              <li><b>Judge it</b>: CONFIRM, REVIEW or REJECT. <b>Confirming a lead chains the investigation</b> — Tusna takes its new identifiers (a different username, a real name, a linked email) and searches from them, adding the leads for you to review. <b>Rejecting or removing a node suppresses it</b>: it is never proposed again on this seed.</li>
               <li><b>Right-click a node</b> to Pivot, Auto-expand, set it as the new seed, or focus its sub-graph.</li>
             </ol>
 

@@ -6,7 +6,10 @@
 
 import type { Signal, Status } from "./signals";
 
-export type DecisionMap = Record<string, Status>; // nodeId → status
+// "removed" is a decision too — the analyst deleted the node; like "rejected" it means
+// "don't propose this again". Both are SUPPRESSED on the next scan.
+export type StoredStatus = Status | "removed";
+export type DecisionMap = Record<string, StoredStatus>; // nodeId → decision
 
 const KEY = "tusna:decisions:v1";
 const seedKey = (seed: string) => seed.trim().toLowerCase();
@@ -32,7 +35,7 @@ export async function loadDecisions(seed: string): Promise<DecisionMap> {
 }
 
 /** Persist one decision. Best-effort server, always mirrored locally. */
-export async function saveDecision(seed: string, nodeId: string, status: Status): Promise<void> {
+export async function saveDecision(seed: string, nodeId: string, status: StoredStatus): Promise<void> {
   const sk = seedKey(seed);
   const all = readLocalAll();
   all[sk] = { ...(all[sk] || {}), [nodeId]: status };
@@ -51,7 +54,31 @@ export function applyDecisions(signals: Signal[], decisions: DecisionMap): numbe
   let n = 0;
   for (const s of signals) {
     const prior = decisions[s.id];
-    if (prior && prior !== s.status) { s.status = prior; n++; }
+    if (prior && prior !== "removed" && prior !== s.status) { s.status = prior as Status; n++; }
   }
   return n;
+}
+
+/** Set of node ids the analyst has suppressed (rejected or removed). */
+export function suppressedIds(decisions: DecisionMap): Set<string> {
+  const set = new Set<string>();
+  for (const [id, d] of Object.entries(decisions)) if (d === "rejected" || d === "removed") set.add(id);
+  return set;
+}
+
+/**
+ * Apply decisions to a fresh scan AND drop anything the analyst suppressed, so
+ * rejected/removed nodes are never proposed again. Returns the kept signals plus a
+ * count of how many were suppressed.
+ */
+export function applyDecisionsFiltered(signals: Signal[], decisions: DecisionMap): { signals: Signal[]; suppressed: number } {
+  const kept: Signal[] = [];
+  let suppressed = 0;
+  for (const s of signals) {
+    const d = decisions[s.id];
+    if (d === "rejected" || d === "removed") { suppressed++; continue; }
+    if (d && d !== s.status) s.status = d as Status;
+    kept.push(s);
+  }
+  return { signals: kept, suppressed };
 }

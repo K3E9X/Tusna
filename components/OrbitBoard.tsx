@@ -43,7 +43,9 @@ export default function OrbitBoard() {
   const [cases, setCases] = useState<Case[]>([]);
   const [casesOpen, setCasesOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
-  const [addForm, setAddForm] = useState<{ platform: string; handle: string; url: string; via: string; note: string; screenshot: string } | null>(null);
+  const [addForm, setAddForm] = useState<{ platform: string; handle: string; url: string; via: string; note: string; screenshot: string; displayName: string; bio: string; location: string; email: string; avatar: string } | null>(null);
+  const [capturing, setCapturing] = useState(false);
+  const ingestRef = useRef<(manual: Signal, extracted: Signal[], links: [string, string][]) => void>(() => {});
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [dossier, setDossier] = useState<Dossier | null>(null);
@@ -135,41 +137,54 @@ export default function OrbitBoard() {
   }
 
   function openAddForm(via?: string, platform?: string) {
-    setAddForm({ platform: platform || "", handle: "", url: "", via: via || "", note: "", screenshot: "" });
+    setAddForm({ platform: platform || "", handle: "", url: "", via: via || "", note: "", screenshot: "", displayName: "", bio: "", location: "", email: "", avatar: "" });
     setAppsOpen(false);
   }
 
-  function submitAdd() {
-    if (!addForm) return;
+  // Capture a manually-found account/fact and run it through the SAME correlation
+  // engine as automated collection — links by handle/name/email/avatar, mines the
+  // pasted bio for identifiers, geocodes a location. Falls back to a bare local node
+  // if the correlation route is unreachable.
+  async function submitAdd() {
+    if (!addForm || capturing) return;
     const platform = addForm.platform.trim();
     const handle = addForm.handle.trim();
     if (!platform || !handle) { flashMsg("platform & handle required"); return; }
-    const key = (handle.replace(/^u\//, "") + platform).toLowerCase().replace(/[^a-z0-9]/g, "");
-    const via = addForm.via.trim() || "manual pivot";
-    const now = new Date().toISOString();
-    // chain of custody: who/where/when a manually-found fact came from — the bridge
-    // from closed-platform recon (Instagram, LinkedIn…) back into the graph as evidence.
-    const evidence = [{
-      name: "Analyst-captured",
-      detail: `Found via ${via} and attested by the analyst${addForm.note.trim() ? " — " + addForm.note.trim() : ""} (to confirm).`,
-      source: `manual capture · ${now.slice(0, 16).replace("T", " ")} UTC` + (addForm.url.trim() ? ` · ${addForm.url.trim()}` : ""),
-      weight: 60,
-    }];
-    if (addForm.screenshot.trim()) {
-      evidence.push({ name: "Evidence snapshot", detail: "Screenshot archived by the analyst.", source: addForm.screenshot.trim(), weight: 58 });
+    setCapturing(true);
+    try {
+      const res = await fetch("/api/correlate", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          input: {
+            platform, handle, url: addForm.url.trim(), via: addForm.via.trim(),
+            note: addForm.note.trim(), screenshot: addForm.screenshot.trim(),
+            displayName: addForm.displayName.trim(), bio: addForm.bio.trim(),
+            location: addForm.location.trim(), email: addForm.email.trim(), avatar: addForm.avatar.trim(),
+          },
+          signals: currentSignals(),
+          seed: seedRef.current.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.manual) { flashMsg(data?.error || "capture failed"); return; }
+      ingestRef.current(data.manual as Signal, (data.extracted || []) as Signal[], (data.links || []) as [string, string][]);
+      setAddForm(null);
+      flashMsg(data.summary || "evidence captured");
+    } catch {
+      // offline fallback: at least record the node with custody, no correlation
+      const now = new Date().toISOString();
+      const key = (handle.replace(/^u\//, "") + platform).toLowerCase().replace(/[^a-z0-9]/g, "");
+      addNodeRef.current({
+        id: "manual:" + key, platform: platform.toUpperCase(), handle,
+        disc: (platform.replace(/[^A-Za-z0-9]/g, "").slice(0, 2) || "MN").toUpperCase(),
+        confidence: 55, status: "review", collectedAt: now, url: addForm.url.trim() || undefined,
+        evidence: [{ name: "Analyst-captured", detail: "Added by the analyst (correlation offline).", source: "manual capture", weight: 60 }],
+      });
+      setAddForm(null);
+      flashMsg("captured (offline · no correlation)");
+    } finally {
+      setCapturing(false);
     }
-    const seedN = seedRef.current.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (seedN && seedN === handle.replace(/^u\//, "").toLowerCase().replace(/[^a-z0-9]/g, "")) {
-      evidence.push({ name: "Matches the seed", detail: "Handle equals the seed.", source: "correlation", weight: 78 });
-    }
-    addNodeRef.current({
-      id: "manual:" + key, platform: platform.toUpperCase(), handle,
-      disc: (platform.replace(/[^A-Za-z0-9]/g, "").slice(0, 2) || "MN").toUpperCase(),
-      confidence: 55, status: "review", collectedAt: now,
-      url: addForm.url.trim() || undefined, evidence,
-    });
-    setAddForm(null);
-    flashMsg("evidence captured");
   }
 
   function flashMsg(m: string) { setScanMsg(m); setTimeout(() => setScanMsg(null), 3000); }
@@ -317,6 +332,32 @@ export default function OrbitBoard() {
       setSelectedId(s.id);
     }
     addNodeRef.current = addNode;
+
+    // ingest a correlated manual capture: add the node + any extracted identifier
+    // nodes, then apply the correlation links (same linkedIds the engine uses)
+    function ingestCorrelation(manual: Signal, extracted: Signal[], links: [string, string][]) {
+      const byId = new Map(nodesRef.current.map((n) => [n.id, n]));
+      const spawnNear = (s: Signal, near?: WorkNode) => {
+        if (byId.has(s.id)) return;
+        const ang = Math.random() * Math.PI * 2, r = 60 + Math.random() * 40;
+        const ox = near ? near.x : cx, oy = near ? near.y : cy;
+        const d: WorkNode = { ...s, a: ang, x: ox + Math.cos(ang) * r, y: oy + Math.sin(ang) * r, vx: 0, vy: 0, op: 0 };
+        nodesRef.current.push(d); byId.set(d.id, d); makeEl(d);
+      };
+      spawnNear(manual);
+      const mNode = byId.get(manual.id);
+      for (const e of extracted) spawnNear(e, mNode);
+      for (const [a, b] of links) {
+        const A = byId.get(a), B = byId.get(b);
+        if (!A || !B || a === b) continue;
+        A.linkedIds = A.linkedIds || []; B.linkedIds = B.linkedIds || [];
+        if (!A.linkedIds.includes(b)) A.linkedIds.push(b);
+        if (!B.linkedIds.includes(a)) B.linkedIds.push(a);
+      }
+      setDataVersion((v) => v + 1);
+      setSelectedId(manual.id);
+    }
+    ingestRef.current = ingestCorrelation;
 
     // merge a rescan's results into the live board, linked to the pivoted node
     function mergeNodes(sigs: Signal[], originId: string, qkey: string) {
@@ -819,7 +860,7 @@ export default function OrbitBoard() {
           <button className="btn" onClick={exportCurrent}>EXPORT</button>
           <button className="btn" onClick={() => fileRef.current?.click()}>IMPORT</button>
           <input ref={fileRef} type="file" accept="application/json,.json" onChange={importFile} style={{ display: "none" }} />
-          <button className="btn" onClick={() => openAddForm()}>+ NODE</button>
+          <button className="btn" onClick={() => openAddForm()}>+ CAPTURE</button>
           <div className="cases-wrap">
             <button className="btn" onClick={() => setAppsOpen((o) => !o)}>
               APPS ({[...enabled].filter((id) => BUILTIN_APPS.some((a) => a.id === id)).length}/{BUILTIN_APPS.length})
@@ -892,26 +933,47 @@ export default function OrbitBoard() {
       {addForm && (
         <div className="add-overlay" onClick={() => setAddForm(null)}>
           <div className="add-card" onClick={(e) => e.stopPropagation()}>
-            <div className="add-title">CAPTURE EVIDENCE{addForm.via ? <em> · via {addForm.via}</em> : null}</div>
-            <div className="add-sub">Bridge a manually-found fact (Instagram, LinkedIn, a forum…) back into the graph — with chain of custody.</div>
-            <label className="add-field"><span>platform</span>
-              <input autoFocus value={addForm.platform} placeholder="e.g. INSTAGRAM" onChange={(e) => setAddForm({ ...addForm, platform: e.target.value })} />
+            <div className="add-title">CAPTURE &amp; CORRELATE{addForm.via ? <em> · via {addForm.via}</em> : null}</div>
+            <div className="add-sub">Found an Instagram / Facebook / LinkedIn account yourself? Enter what you saw. Tusna runs it through the same engine — links it by handle, name, email &amp; avatar, mines the bio, and maps the location.</div>
+            <div className="add-cols">
+              <label className="add-field"><span>platform *</span>
+                <input autoFocus value={addForm.platform} placeholder="e.g. INSTAGRAM" onChange={(e) => setAddForm({ ...addForm, platform: e.target.value })} />
+              </label>
+              <label className="add-field"><span>handle *</span>
+                <input value={addForm.handle} placeholder="e.g. john.doe" onChange={(e) => setAddForm({ ...addForm, handle: e.target.value })} />
+              </label>
+            </div>
+            <label className="add-field"><span>url</span>
+              <input value={addForm.url} placeholder="https://instagram.com/john.doe" onChange={(e) => setAddForm({ ...addForm, url: e.target.value })} />
             </label>
-            <label className="add-field"><span>handle</span>
-              <input value={addForm.handle} placeholder="e.g. john.doe" onChange={(e) => setAddForm({ ...addForm, handle: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); }} />
+            <div className="add-cols">
+              <label className="add-field"><span>display name</span>
+                <input value={addForm.displayName} placeholder="John Doe" onChange={(e) => setAddForm({ ...addForm, displayName: e.target.value })} />
+              </label>
+              <label className="add-field"><span>email seen</span>
+                <input value={addForm.email} placeholder="john@…" onChange={(e) => setAddForm({ ...addForm, email: e.target.value })} />
+              </label>
+            </div>
+            <label className="add-field"><span>bio / text (mined for identifiers)</span>
+              <input value={addForm.bio} placeholder="paste the profile bio — @handles &amp; emails get extracted" onChange={(e) => setAddForm({ ...addForm, bio: e.target.value })} />
             </label>
-            <label className="add-field"><span>url (optional)</span>
-              <input value={addForm.url} placeholder="https://…" onChange={(e) => setAddForm({ ...addForm, url: e.target.value })} />
-            </label>
-            <label className="add-field"><span>note (optional)</span>
+            <div className="add-cols">
+              <label className="add-field"><span>location</span>
+                <input value={addForm.location} placeholder="Paris — or 48.85, 2.35" onChange={(e) => setAddForm({ ...addForm, location: e.target.value })} />
+              </label>
+              <label className="add-field"><span>avatar url (pHash match)</span>
+                <input value={addForm.avatar} placeholder="https://…/photo.jpg" onChange={(e) => setAddForm({ ...addForm, avatar: e.target.value })} />
+              </label>
+            </div>
+            <label className="add-field"><span>note · screenshot url (custody)</span>
               <input value={addForm.note} placeholder="what you saw / why it matches" onChange={(e) => setAddForm({ ...addForm, note: e.target.value })} />
             </label>
-            <label className="add-field"><span>screenshot url</span>
-              <input value={addForm.screenshot} placeholder="archived screenshot link (optional)" onChange={(e) => setAddForm({ ...addForm, screenshot: e.target.value })} />
+            <label className="add-field"><span></span>
+              <input value={addForm.screenshot} placeholder="archived screenshot link (optional)" onChange={(e) => setAddForm({ ...addForm, screenshot: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); }} />
             </label>
             <div className="add-actions">
               <button className="btn" onClick={() => setAddForm(null)}>CANCEL</button>
-              <button className="btn add-primary" onClick={submitAdd}>CAPTURE TO BOARD</button>
+              <button className="btn add-primary" onClick={submitAdd} disabled={capturing}>{capturing ? "CORRELATING…" : "CAPTURE &amp; CORRELATE"}</button>
             </div>
           </div>
         </div>

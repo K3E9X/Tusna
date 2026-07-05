@@ -13,6 +13,7 @@ import { scoreEvidence, TIER_LABEL } from "@/lib/scoring";
 import { reverseImageLinks } from "@/lib/reverseimage";
 import { diffSnapshots, type MonitorDiff } from "@/lib/monitor";
 import { loadDecisions, saveDecision, applyDecisions } from "@/lib/decisions";
+import { shouldWipeBeforeScan } from "@/lib/board";
 
 // Leaflet touches window on import — load the map only in the browser.
 const MapView = dynamic(() => import("./MapView"), { ssr: false });
@@ -55,6 +56,9 @@ export default function OrbitBoard() {
   const [monitoring, setMonitoring] = useState(false);
   const [barMenu, setBarMenu] = useState<"tools" | "data" | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [isDemo, setIsDemo] = useState(true); // the board starts with demo data
+  const demoRef = useRef(true);
+  const lastScanRef = useRef<string>("");
   const [tableSort, setTableSort] = useState<{ key: string; dir: 1 | -1 }>({ key: "tier", dir: 1 });
   const [tableFilter, setTableFilter] = useState("");
   const [narrative, setNarrative] = useState<string | null>(null);
@@ -580,15 +584,25 @@ export default function OrbitBoard() {
     if (seed) saveDecision(seed, id, status).catch(() => {});
   }
 
+  function clearDemoState() {
+    if (demoRef.current) { demoRef.current = false; setIsDemo(false); }
+  }
+
   async function runScan() {
     const u = seedRef.current.trim();
     if (!u || scanning) return;
+    // A scan is a FRESH investigation of the seed. If the board still holds the demo,
+    // or we're now targeting a different seed, wipe it first so nothing stale (the demo
+    // "john_doe", or a previous target) mixes into — or gets auto-expanded from — the
+    // new results. Re-scanning the SAME seed keeps the board on empty/error.
+    if (shouldWipeBeforeScan(demoRef.current, u, lastScanRef.current)) { rebuildRef.current([], false); clearDemoState(); }
     setScanning(true); setScanMsg("scanning…");
     try {
       const cids = [...enabledRef.current].join(",");
       const res = await fetch(`/api/scan?username=${encodeURIComponent(u)}&connectors=${encodeURIComponent(cids)}`);
       const data = await res.json();
       if (!res.ok) { setScanMsg(data?.error || "scan failed"); return; }
+      lastScanRef.current = u;
       if (!data.signals?.length) { setScanMsg("no public presence found"); return; }
       // feedback loop: re-apply the analyst's prior confirm/reject decisions
       let restored = 0;
@@ -729,6 +743,9 @@ export default function OrbitBoard() {
 
   function openCase(c: Case) {
     setSeed(c.seed);
+    seedRef.current = c.seed;
+    lastScanRef.current = c.seed;
+    clearDemoState();
     rebuildRef.current(c.signals, true);
     setCasesOpen(false);
     flashMsg(`loaded "${c.name}"`);
@@ -761,6 +778,9 @@ export default function OrbitBoard() {
     const c = parseCase(text);
     if (!c) { flashMsg("invalid case file"); return; }
     setSeed(c.seed);
+    seedRef.current = c.seed;
+    lastScanRef.current = c.seed;
+    clearDemoState();
     rebuildRef.current(c.signals, true);
     setCasesOpen(false);
     flashMsg(`imported "${c.name}"`);
@@ -893,6 +913,7 @@ export default function OrbitBoard() {
         <div className="flex" />
         <div className="readout">
           {(deepStatus || scanMsg) && <span className="rd-msg">{deepStatus || scanMsg}</span>}
+          {isDemo && <span className="demo-tag">sample data — scan a seed to start</span>}
           <span className="hide-sm"><span className="dotpulse" /><b>{total}</b> signals</span>
           <span className="hide-sm"><b style={{ color: "var(--confirm)" }}>{confirmedCount}</b> confirmed</span>
 

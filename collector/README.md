@@ -10,15 +10,26 @@ username ──▶ Tusna /api/scan ──(COLLECTOR_URL set)──▶ collector 
                      ◀── normalized entity graph ◀── { sites, identifiers } ◀──┘
 ```
 
-## Endpoint
+This worker is Tusna's **collection hub** — plug best-in-class OSS collectors here and
+let Tusna pull & correlate. It currently exposes **Maigret** (username → deep profiles)
+and **Holehe** (email → accounts on 120+ mainstream sites, *no alert to the target*).
+Natural next modules: **SpiderFoot** (200+ modules, one target → everything) and
+**theHarvester** (domain → emails/subdomains).
+
+## Endpoints
 
 ```
 GET /scan?username=<u>&top=<N>&timeout=<s>[&token=<secret>]
 → { username, count, sites: [{ name, url, ids }], identifiers: { fullname:[], username:[], … } }
+
+GET /holehe?email=<e>[&token=<secret>]
+→ { email, used: ["instagram.com", "spotify.com", …], count }
 ```
 
 `sites` = claimed accounts (with any profile fields Maigret extracted); `identifiers` =
-aggregated discovered data (other handles, emails, names) that Tusna turns into graph nodes.
+aggregated discovered data (other handles, emails, names). `used` = mainstream sites where
+the email is registered (via password-recovery probing, silent). Tusna turns all of it into
+graph nodes.
 
 ## Run locally
 

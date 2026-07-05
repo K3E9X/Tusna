@@ -1,7 +1,9 @@
 # Tusna
 
-**OSINT identity aggregation & correlation platform.**
-Tusna is not a script launcher: it's a hub that merges, deduplicates, links and **scores** what dozens of OSINT tools produce, in a fast, auditable experience.
+**The OSINT correlation cockpit.**
+Tusna's job is not to re-scrape the web — proven open-source collectors (Maigret, Holehe, SpiderFoot…) already do that. Tusna's job is the part that's rarely done well: **resolve one identity across everything those collectors surface** — merge, deduplicate, link, score with an honest tier, extract identifiers, pivot, and synthesize a person. It orchestrates the collectors and owns the correlation, the graph, the dossier, and the investigation workflow.
+
+> Design principle: *delegate collection, own correlation.* Plug collectors into the [worker](collector/), pull their output, and let Tusna do the intelligence.
 
 The signature view is **Orbit**: identity correlation shown as a **gravitational system**. The seed (a username, an email, a person) sits at the center; every presence found on the net is a body in orbit; **the matching engine's confidence = the pull of gravity**. Strong evidence → tight orbit (the "confirmed self"); weak or contradicted evidence → drift into the cold. Spring physics: everything glides, nothing is frozen.
 
@@ -84,6 +86,29 @@ This is the "install an app → it adapts to the seed and correlates with the ot
 **Recursive pivot & auto-expand.** Select any discovered node (an email, an alias, a platform) — the inspector offers **⌖ PIVOT** (rescan that identifier and merge the new hop into the same board, linked to the node you pivoted from) and **⇲ AUTO-EXPAND · 2 hops** (automatically pivots on the newly-discovered emails/aliases for two hops, capped at ~40 new nodes, deduping visited identifiers). One seed grows outward into a real constellation, under your control. A pivoted account that's genuinely the same as one already on the board reuses its node; a different person's same-platform account is namespaced so it never collides.
 
 **Closing the manual loop.** When a manual pivot surfaces a finding, add it to the board: `+ result` on an installed pivot (or the `+ NODE` button) opens a small form (platform, handle, url) and drops a new body into the live orbit, tied to the seed and marked "added manually — to confirm". It then behaves like any other node (confirm / review / reject, save with the case). So a manual tool's output re-enters the same correlated view instead of living in a separate tab.
+
+## Real-person sources (where free OSINT usually fails)
+
+Dev-platform APIs return nothing on an ordinary person. Two free, high-signal sources close that gap:
+
+- **Hudson Rock (infostealer)** — is the email/username in infostealer logs, and **which services did the victim log into** (Instagram, PayPal…)? That surfaces real accounts we could never scan directly. Free, defensive; credentials are never shown. On by default.
+- **Holehe (email → accounts)** — via the [worker](collector/), checks 120+ mainstream sites for an account tied to the email, silently. This is the real answer to "email → where is this person".
+
+## Honest scoring — tiers, not a fake %
+
+A "68% match" nobody calibrated is worthless. Every node gets a **qualitative tier** derived from its evidence classes (hard / soft / weak) plus a **corroboration count**:
+
+- **VERIFIED** — at least one *hard* cross-signal (matching avatar pHash, declared+verified linked account, PGP, breach).
+- **PROBABLE** — several corroborating *soft* signals.
+- **POSSIBLE** — a single soft signal.
+- **WEAK** — existence-only / inferred / derived (e.g. a WhatsMyName URL-pattern hit).
+
+A single weak signal can never masquerade as strong. The numeric confidence is shown but secondary — the tier is what you trust.
+
+## Two views
+
+- **ORBIT** — the gravitational graph, for exploring and seeing the web of links.
+- **TABLE** — a dense, sortable, filterable data table (tier · type · platform · handle · corroborating signals · status), for actually working the data.
 
 ## Intelligence layer — the DOSSIER
 

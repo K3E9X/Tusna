@@ -4,7 +4,7 @@ import { scanWmn } from "@/lib/wmn";
 import { scanEmail } from "@/lib/email";
 import { dHashFromUrl, avatarMatch } from "@/lib/phash";
 import { extractFromText, normId } from "@/lib/extract";
-import { collect, collectorEnabled } from "@/lib/collector";
+import { collect, holeheAccounts, collectorEnabled } from "@/lib/collector";
 import { searchIntelX, intelxEnabled } from "@/lib/intelx";
 import { hudsonRockEmail, hudsonRockUsername } from "@/lib/hudsonrock";
 import { looksLikePhone, phoneIntel, type PhoneIntel } from "@/lib/phone";
@@ -354,6 +354,14 @@ export async function GET(req: NextRequest) {
     if (!enabled || enabled.has("hudsonrock")) {
       const hr = isEmail ? await hudsonRockEmail(q) : await hudsonRockUsername(matchTarget);
       signals.push(...hr);
+    }
+
+    // email → registered accounts on mainstream sites (holehe, via the worker)
+    if (isEmail && collectorEnabled && (!enabled || enabled.has("holehe"))) {
+      const acc = await holeheAccounts(q);
+      // dedupe against platforms already present
+      const have = new Set(signals.map((s) => norm(s.platform)));
+      signals.push(...acc.filter((a) => !have.has(norm(a.platform))));
     }
 
     for (const s of signals) {

@@ -11,10 +11,13 @@ Deploy:        see collector/README.md (Render / Railway / Fly, free tiers)
 """
 import json
 import os
+import re
 import subprocess
 import tempfile
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 app = FastAPI(title="Tusna Collector", version="0.1")
 app.add_middleware(
@@ -80,9 +83,36 @@ def normalize(username: str, report: dict) -> dict:
     return {"username": username, "count": len(sites), "sites": sites, "identifiers": identifiers}
 
 
+def run_holehe(email: str, timeout: int = 55) -> list[str]:
+    """Run holehe (email → registered accounts, no alert to target). Returns used domains."""
+    try:
+        proc = subprocess.run(
+            ["holehe", email, "--only-used"],
+            capture_output=True, timeout=timeout, text=True,
+        )
+    except Exception:
+        return []
+    used: list[str] = []
+    for line in proc.stdout.splitlines():
+        line = ANSI.sub("", line).strip()
+        if line.startswith("[+]"):
+            token = line[3:].strip().split()[0]
+            if token and token not in used:
+                used.append(token)
+    return used
+
+
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+@app.get("/holehe")
+def holehe_scan(email: str = Query(..., min_length=3, max_length=120), token: str = Query("")):
+    if TOKEN and token != TOKEN:
+        return {"error": "unauthorized"}
+    used = run_holehe(email)
+    return {"email": email, "used": used, "count": len(used)}
 
 
 @app.get("/scan")

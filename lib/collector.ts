@@ -6,6 +6,7 @@
 
 import { normId } from "./extract";
 import type { RawProfile } from "./connectors";
+import type { Signal } from "./signals";
 
 const COLLECTOR_URL = process.env.COLLECTOR_URL || "";
 const COLLECTOR_TOKEN = process.env.COLLECTOR_TOKEN || "";
@@ -47,6 +48,35 @@ function mapSites(username: string, data: any): RawProfile[] {
     };
     return p;
   });
+}
+
+/** Holehe via the worker: email → accounts registered on 120+ sites (no alert). */
+export async function holeheAccounts(email: string): Promise<Signal[]> {
+  if (!collectorEnabled) return [];
+  try {
+    const base = COLLECTOR_URL.replace(/\/$/, "");
+    const tok = COLLECTOR_TOKEN ? `&token=${encodeURIComponent(COLLECTOR_TOKEN)}` : "";
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 55000);
+    const res = await fetch(`${base}/holehe?email=${encodeURIComponent(email)}${tok}`, { signal: ctrl.signal, cache: "no-store" });
+    clearTimeout(t);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const used: string[] = Array.isArray(data?.used) ? data.used : [];
+    return used.slice(0, 14).map((domain) => ({
+      id: "holehe:" + normId(domain),
+      platform: domain.toUpperCase(),
+      handle: email,
+      disc: disc(domain),
+      kind: "platform" as const,
+      tier: "possible" as const,
+      confidence: 55,
+      status: "candidate" as const,
+      evidence: [{ name: "Account exists", detail: `${email} is registered on ${domain} (holehe — no alert to the target).`, source: "holehe · via collector", weight: 64 }],
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function collect(username: string, top = 300, timeout = 8): Promise<RawProfile[]> {

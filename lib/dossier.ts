@@ -4,12 +4,14 @@
 // consolidates verified nodes, it does not invent anything.
 
 import type { Signal } from "./signals";
+import { scoreEvidence, type Tier } from "./scoring";
 
 export interface DossierAccount {
   platform: string;
   handle: string;
   confidence: number;
   status: string;
+  tier: Tier;
   url?: string;
 }
 
@@ -49,21 +51,24 @@ export function buildDossier(signals: Signal[]): Dossier {
   }
   const namesRanked = [...nameScore.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
 
-  const rank = (st: string) => (st === "confirmed" ? 0 : st === "review" ? 1 : st === "candidate" ? 2 : 3);
-  const accounts = accountsSig
+  const tierRank: Record<Tier, number> = { verified: 0, probable: 1, possible: 2, weak: 3 };
+  const tierOf = (s: Signal): Tier => s.tier || scoreEvidence(s.evidence).tier;
+  const accounts: DossierAccount[] = accountsSig
     .filter((s) => s.status !== "rejected")
-    .sort((a, b) => rank(a.status) - rank(b.status) || b.confidence - a.confidence)
-    .map((s) => ({ platform: s.platform, handle: s.handle, confidence: s.confidence, status: s.status, url: s.url }));
+    .map((s) => ({ platform: s.platform, handle: s.handle, confidence: s.confidence, status: s.status, tier: tierOf(s), url: s.url }))
+    .sort((a, b) => tierRank[a.tier] - tierRank[b.tier] || b.confidence - a.confidence);
 
   const confirmedCount = accountsSig.filter((s) => s.status === "confirmed").length;
+  const verifiedCount = accounts.filter((a) => a.tier === "verified").length;
 
-  // identification score: corroboration across attribute types + account strength
+  // identification score: corroboration across attribute types + strength of the
+  // strongest accounts (verified/confirmed count much more than raw node count).
   let score = 0;
-  if (namesRanked.length) score += 25;
+  if (namesRanked.length) score += 22;
   if (emails.length) score += 20;
-  if (phones.length) score += 15;
-  if (locations.length) score += 15;
-  score += Math.min(25, confirmedCount * 8 + accounts.length * 2);
+  if (phones.length) score += 13;
+  if (locations.length) score += 13;
+  score += Math.min(32, verifiedCount * 14 + confirmedCount * 8 + accounts.length);
   score = Math.min(99, score);
 
   return {

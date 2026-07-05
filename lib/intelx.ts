@@ -26,6 +26,7 @@ function toNode(rec: any): Signal {
     disc: "LK",
     kind: "leak",
     confidence: 50,
+    tier: "possible",
     status: "review",
     evidence: [
       { name: "Appears in leak / paste", detail: `${name} · ${bucket}${date ? " · " + date : ""}`, source: "intelx.io", weight: 62 },

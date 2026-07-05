@@ -137,6 +137,11 @@ body {
 .da-plat { font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); width: 90px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .da-handle { font-size: 12px; color: var(--ink); flex: 1; word-break: break-all; }
 .da-conf { font-family: var(--mono); font-size: 11px; color: var(--ink-2); flex: none; }
+.da-tier { font-size: 8px; letter-spacing: .1em; text-transform: uppercase; padding: 2px 6px; border-radius: 10px; border: 1px solid; flex: none; width: 66px; text-align: center; }
+.da-tier.t-verified { color: var(--confirm); border-color: color-mix(in srgb, var(--confirm) 45%, transparent); }
+.da-tier.t-probable { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.da-tier.t-possible { color: var(--type-email); border-color: color-mix(in srgb, var(--type-email) 45%, transparent); }
+.da-tier.t-weak { color: var(--ink-3); border-color: var(--line); }
 .da-open { color: var(--accent); text-decoration: none; flex: none; }
 .dossier-empty { font-size: 11px; color: var(--ink-4); padding: 8px 0; }
 .narrative { margin-top: 12px; padding: 14px; border: 1px solid var(--line-soft); border-radius: 5px; background: var(--void-2);
@@ -192,7 +197,14 @@ body {
 .insp-close:hover { color: var(--ink); }
 .insp-plat { font-size: 9.5px; letter-spacing: .28em; color: var(--ink-3); }
 .insp-handle { font-size: 20px; color: var(--ink); margin-top: 8px; word-break: break-all; letter-spacing: .01em; }
-.insp-score { margin-top: 26px; display: flex; align-items: baseline; gap: 10px; }
+.tier-badge { display: inline-block; font-size: 15px; letter-spacing: .2em; font-weight: 400; padding: 6px 14px; border-radius: 3px; border: 1px solid; }
+.tier-badge.t-verified { color: var(--confirm); border-color: color-mix(in srgb, var(--confirm) 55%, transparent); }
+.tier-badge.t-probable { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.tier-badge.t-possible { color: var(--type-email); border-color: color-mix(in srgb, var(--type-email) 55%, transparent); }
+.tier-badge.t-weak { color: var(--ink-3); border-color: var(--line); }
+.tier-sub { display: block; font-size: 10px; letter-spacing: .04em; color: var(--ink-3); margin-top: 10px; }
+
+.insp-score { margin-top: 26px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .insp-score b { font-size: 44px; font-weight: 400; letter-spacing: -.02em; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1; }
 .insp-score span { font-size: 10px; letter-spacing: .16em; color: var(--ink-3); }
 .track { height: 1px; background: var(--line); margin-top: 18px; position: relative; }

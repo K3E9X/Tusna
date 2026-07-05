@@ -8,6 +8,7 @@ import { collect, collectorEnabled } from "@/lib/collector";
 import { searchIntelX, intelxEnabled } from "@/lib/intelx";
 import { looksLikePhone, phoneIntel, type PhoneIntel } from "@/lib/phone";
 import { looksLikeName, nameSignals } from "@/lib/name";
+import { scoreEvidence } from "@/lib/scoring";
 import type { Signal, Evidence, Status } from "@/lib/signals";
 
 function phoneSignal(intel: PhoneIntel): Signal {
@@ -37,6 +38,7 @@ function phoneSignal(intel: PhoneIntel): Signal {
     disc: "TEL",
     kind: "phone",
     confidence: valid ? 68 : 30,
+    tier: valid ? "possible" : "weak",
     status: "review",
     evidence,
   };
@@ -126,15 +128,14 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
     if (p.avatar) evidence.push({ name: "Avatar present", detail: p.avatarHash ? "Public profile image (hashed for correlation)." : "Public profile image.", source: p.source, weight: 48 });
     if (p.createdAt) evidence.push({ name: "Account age", detail: `Account created on ${p.createdAt.slice(0, 10)}.`, source: p.source, weight: 30 });
 
-    // cross-signal: display name shared with another platform
+    // cross-signal: display name shared with another platform (SOFT — a shared name
+    // alone is a hint, not proof; it must be corroborated to lift the tier)
     const other = profiles.find((q) => q.id !== p.id && q.displayName && p.displayName && norm(q.displayName) === norm(p.displayName));
-    let crossBoost = 0;
     if (other) {
-      crossBoost += 14;
       evidence.push({ name: "Matching name", detail: `Public name identical to ${other.platform}.`, source: "cross-source correlation", weight: 82 });
     }
 
-    // strong cross-signal: matching avatar (perceptual hash) with another platform
+    // strong cross-signal: matching avatar (perceptual hash) with another platform (HARD)
     if (p.avatarHash) {
       let best: { platform: string; distance: number; strong: boolean } | null = null;
       for (const q of profiles) {
@@ -143,7 +144,6 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
         if (m.near && (!best || m.distance < best.distance)) best = { platform: q.platform, distance: m.distance, strong: m.match };
       }
       if (best) {
-        crossBoost += best.strong ? 20 : 12;
         evidence.push({
           name: best.strong ? "Matching avatar" : "Near-match avatar",
           detail: `Profile photo matches ${best.platform} (pHash distance ${best.distance}/64).`,
@@ -153,22 +153,18 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
       }
     }
 
-    // strong cross-signal: self-declared / verified linked accounts (Keybase, Gravatar)
+    // strong cross-signal: self-declared / verified linked accounts (Keybase, Gravatar) (HARD)
     if (p.links?.length) {
-      crossBoost += 18;
       for (const l of p.links.slice(0, 4)) {
         evidence.push({ name: "Declared linked account", detail: l.label + (l.url ? ` → ${l.url}` : ""), source: `${p.source} · declared link`, weight: 85 });
       }
     }
 
-    const base = p.unverified ? (exact ? 55 : 42) : p.declared ? 60 : p.derived ? (exact ? 48 : 38) : (exact ? 62 : 46);
-    let confidence = base + crossBoost;
-    if (p.displayName) confidence += 6;
-    if (p.bio) confidence += 5;
-    if (p.avatar) confidence += 5;
-    confidence = clamp(Math.round(confidence), 22, 94);
-
-    const status: Status = confidence >= 78 ? "review" : "candidate";
+    // honest, evidence-driven score: qualitative tier + derived confidence
+    const scored = scoreEvidence(evidence);
+    const confidence = scored.confidence;
+    const tier = scored.tier;
+    const status: Status = (tier === "verified" || tier === "probable") ? "review" : "candidate";
 
     return {
       id: p.id,
@@ -177,6 +173,7 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
       disc: p.disc,
       url: p.url || undefined,
       displayName: p.displayName || undefined,
+      tier,
       confidence,
       status,
       evidence,
@@ -334,6 +331,7 @@ export async function GET(req: NextRequest) {
         disc: meta.disc,
         kind: meta.kind,
         confidence: a.kind === "LOCATION" ? 58 : 52,
+        tier: "possible",
         status: "candidate",
         evidence: [{
           name: meta.label,

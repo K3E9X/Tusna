@@ -8,6 +8,7 @@ import { loadEnabled, saveEnabled } from "@/lib/apps";
 import { normId } from "@/lib/extract";
 import { buildDossier, type Dossier } from "@/lib/dossier";
 import type { Verification } from "@/lib/verify";
+import { scoreEvidence, TIER_LABEL } from "@/lib/scoring";
 
 interface WorkNode extends Signal {
   x: number; y: number; vx: number; vy: number; op: number; a: number;
@@ -664,10 +665,15 @@ export default function OrbitBoard() {
             <button className="insp-close" onClick={() => setSelectedId(null)} aria-label="close">✕</button>
             <div className="insp-plat">{selected.platform}</div>
             <div className="insp-handle">{selected.handle}</div>
-            <div className="insp-score">
-              <b style={{ color: selected.status === "rejected" ? "var(--reject)" : "var(--accent)" }}>{selected.confidence}</b>
-              <span>CORRELATION<br />SCORE</span>
-            </div>
+            {(() => {
+              const tier = selected.tier || scoreEvidence(selected.evidence).tier;
+              return (
+                <div className="insp-score">
+                  <div className={"tier-badge t-" + tier}>{TIER_LABEL[tier]}</div>
+                  <span className="tier-sub">{scoreEvidence(selected.evidence).corroboration} corroborating signal(s) · derived confidence {selected.confidence}</span>
+                </div>
+              );
+            })()}
             <div className="track">
               <i style={{ width: selected.confidence + "%", background: selected.status === "rejected" ? "var(--reject)" : "var(--accent)" }} />
             </div>
@@ -770,10 +776,9 @@ export default function OrbitBoard() {
               {dossier.accounts.length === 0 && <div className="dossier-empty">no accounts yet — run a scan / investigate</div>}
               {dossier.accounts.map((a, i) => (
                 <div className="dossier-acct" key={i}>
-                  <span className={"dossier-dot s-" + a.status} />
+                  <span className={"da-tier t-" + a.tier}>{a.tier}</span>
                   <span className="da-plat">{a.platform}</span>
                   <span className="da-handle">{a.handle}</span>
-                  <span className="da-conf">{a.confidence}%</span>
                   {a.url && <a className="da-open" href={a.url} target="_blank" rel="noopener noreferrer">↗</a>}
                 </div>
               ))}

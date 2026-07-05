@@ -33,6 +33,7 @@ export function nameSignals(name: string): Signal[] {
     disc: "PER",
     kind: "person",
     confidence: 40,
+    tier: "weak",
     status: "review",
     evidence: [{
       name: "Name query",
@@ -48,6 +49,7 @@ export function nameSignals(name: string): Signal[] {
     disc: "?",
     kind: "alias",
     confidence: 28,
+    tier: "weak",
     status: "candidate",
     linkedIds: [id],
     evidence: [{

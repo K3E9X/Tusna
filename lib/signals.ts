@@ -35,6 +35,8 @@ export interface Signal {
   url?: string;
   /** real/display name from the profile, when known (used by the dossier) */
   displayName?: string;
+  /** qualitative correlation tier (honest headline; confidence is secondary) */
+  tier?: "verified" | "probable" | "possible" | "weak";
 }
 
 export const SEED = "j0hn_doe";

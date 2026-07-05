@@ -60,6 +60,7 @@ export async function saveCase(name: string, seed: string, caseMode: string, sig
   }
   backend = "local";
   const cases = readLocal(); cases.push(c); writeLocal(cases);
+  appendLocalSnapshot(c.id, signals); // chain-of-custody history (local mode)
   return c;
 }
 
@@ -72,6 +73,43 @@ export async function removeCase(id: string): Promise<void> {
     } catch { /* fall back */ }
   }
   writeLocal(readLocal().filter((c) => c.id !== id));
+}
+
+export interface Snapshot {
+  snapId: string;
+  takenAt: number;
+  signals: Signal[];
+}
+
+const SNAP_KEY = "tusna:snapshots:v1";
+function readLocalSnaps(): Record<string, Snapshot[]> {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(window.localStorage.getItem(SNAP_KEY) || "{}"); } catch { return {}; }
+}
+function writeLocalSnaps(all: Record<string, Snapshot[]>): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(SNAP_KEY, JSON.stringify(all)); } catch { /* quota */ }
+}
+
+/** Append an immutable snapshot for a case (local fallback; server does it on save). */
+export function appendLocalSnapshot(caseId: string, signals: Signal[]): void {
+  const all = readLocalSnaps();
+  const list = all[caseId] || [];
+  list.unshift({ snapId: `${caseId}:${Date.now()}`, takenAt: Date.now(), signals });
+  all[caseId] = list.slice(0, 30);
+  writeLocalSnaps(all);
+}
+
+/** List snapshots for a case (server if configured, else local). Newest first. */
+export async function listSnapshots(caseId: string): Promise<Snapshot[]> {
+  if (backend !== "local") {
+    try {
+      const res = await fetch(`/api/cases?history=${encodeURIComponent(caseId)}`, { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok && data.configured) return data.snapshots || [];
+    } catch { /* fall back */ }
+  }
+  return (readLocalSnaps()[caseId] || []).sort((a, b) => b.takenAt - a.takenAt);
 }
 
 /** Serialize a case for file export. */

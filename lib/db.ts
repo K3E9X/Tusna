@@ -35,6 +35,16 @@ export async function ensureSchema(): Promise<void> {
         saved_at  bigint NOT NULL,
         signals   jsonb NOT NULL
       )`;
+      // append-only history: every save appends an immutable snapshot, so an
+      // investigation has a chain of custody (what was seen, and when).
+      await q`CREATE TABLE IF NOT EXISTS tusna_snapshots (
+        snap_id   text PRIMARY KEY,
+        case_id   text NOT NULL,
+        seed      text,
+        taken_at  bigint NOT NULL,
+        signals   jsonb NOT NULL
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS tusna_snap_case ON tusna_snapshots (case_id, taken_at DESC)`;
     })();
   }
   await _ready;

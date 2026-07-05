@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { SIGNALS, SEED, BANDS, BAND_ORDER, type Signal, type Status } from "@/lib/signals";
 import { listCases, saveCase, removeCase, caseToJSON, parseCase, backendMode, type Case } from "@/lib/cases";
 import { BUILTIN_APPS, MANUAL_APPS, type AppDef } from "@/lib/registry";
@@ -9,6 +10,11 @@ import { normId } from "@/lib/extract";
 import { buildDossier, type Dossier } from "@/lib/dossier";
 import type { Verification } from "@/lib/verify";
 import { scoreEvidence, TIER_LABEL } from "@/lib/scoring";
+import { reverseImageLinks } from "@/lib/reverseimage";
+import { diffSnapshots, type MonitorDiff } from "@/lib/monitor";
+
+// Leaflet touches window on import — load the map only in the browser.
+const MapView = dynamic(() => import("./MapView"), { ssr: false });
 
 interface WorkNode extends Signal {
   x: number; y: number; vx: number; vy: number; op: number; a: number;
@@ -37,11 +43,13 @@ export default function OrbitBoard() {
   const [cases, setCases] = useState<Case[]>([]);
   const [casesOpen, setCasesOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
-  const [addForm, setAddForm] = useState<{ platform: string; handle: string; url: string; via: string } | null>(null);
+  const [addForm, setAddForm] = useState<{ platform: string; handle: string; url: string; via: string; note: string; screenshot: string } | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [dossier, setDossier] = useState<Dossier | null>(null);
-  const [view, setView] = useState<"board" | "table" | "timeline">("board");
+  const [view, setView] = useState<"board" | "table" | "timeline" | "map">("board");
+  const [monitor, setMonitor] = useState<MonitorDiff | null>(null);
+  const [monitoring, setMonitoring] = useState(false);
   const [tableSort, setTableSort] = useState<{ key: string; dir: 1 | -1 }>({ key: "tier", dir: 1 });
   const [tableFilter, setTableFilter] = useState("");
   const [narrative, setNarrative] = useState<string | null>(null);
@@ -127,7 +135,7 @@ export default function OrbitBoard() {
   }
 
   function openAddForm(via?: string, platform?: string) {
-    setAddForm({ platform: platform || "", handle: "", url: "", via: via || "" });
+    setAddForm({ platform: platform || "", handle: "", url: "", via: via || "", note: "", screenshot: "" });
     setAppsOpen(false);
   }
 
@@ -138,7 +146,18 @@ export default function OrbitBoard() {
     if (!platform || !handle) { flashMsg("platform & handle required"); return; }
     const key = (handle.replace(/^u\//, "") + platform).toLowerCase().replace(/[^a-z0-9]/g, "");
     const via = addForm.via.trim() || "manual pivot";
-    const evidence = [{ name: "Added manually", detail: `Found via ${via} and added by the analyst — to confirm.`, source: addForm.url.trim() || "manual entry", weight: 60 }];
+    const now = new Date().toISOString();
+    // chain of custody: who/where/when a manually-found fact came from — the bridge
+    // from closed-platform recon (Instagram, LinkedIn…) back into the graph as evidence.
+    const evidence = [{
+      name: "Analyst-captured",
+      detail: `Found via ${via} and attested by the analyst${addForm.note.trim() ? " — " + addForm.note.trim() : ""} (to confirm).`,
+      source: `manual capture · ${now.slice(0, 16).replace("T", " ")} UTC` + (addForm.url.trim() ? ` · ${addForm.url.trim()}` : ""),
+      weight: 60,
+    }];
+    if (addForm.screenshot.trim()) {
+      evidence.push({ name: "Evidence snapshot", detail: "Screenshot archived by the analyst.", source: addForm.screenshot.trim(), weight: 58 });
+    }
     const seedN = seedRef.current.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
     if (seedN && seedN === handle.replace(/^u\//, "").toLowerCase().replace(/[^a-z0-9]/g, "")) {
       evidence.push({ name: "Matches the seed", detail: "Handle equals the seed.", source: "correlation", weight: 78 });
@@ -146,10 +165,11 @@ export default function OrbitBoard() {
     addNodeRef.current({
       id: "manual:" + key, platform: platform.toUpperCase(), handle,
       disc: (platform.replace(/[^A-Za-z0-9]/g, "").slice(0, 2) || "MN").toUpperCase(),
-      confidence: 55, status: "review", evidence,
+      confidence: 55, status: "review", collectedAt: now,
+      url: addForm.url.trim() || undefined, evidence,
     });
     setAddForm(null);
-    flashMsg("presence added");
+    flashMsg("evidence captured");
   }
 
   function flashMsg(m: string) { setScanMsg(m); setTimeout(() => setScanMsg(null), 3000); }
@@ -177,6 +197,8 @@ export default function OrbitBoard() {
           id: "attr:location:" + coords.replace(/[^0-9\-]/g, ""),
           platform: "LOCATION", handle: coords, disc: "GEO", kind: "location",
           confidence: 74, tier: "probable", status: "review",
+          place: { lat: m.gps.lat, lon: m.gps.lon }, // plot it on the map
+          collectedAt: new Date().toISOString(),
           evidence: [
             { name: "GPS from image", detail: `Coordinates ${coords} embedded in the image EXIF — precise, not self-reported.`, source: "EXIF · exifr", weight: 88 },
             ...(parts.length ? [{ name: "Image context", detail: parts.join(" · "), source: "EXIF", weight: 45 }] : []),
@@ -256,7 +278,7 @@ export default function OrbitBoard() {
       const el = document.createElement("div");
       el.className = "body";
       el.dataset.kind = d.kind || "platform";
-      const discContent = d.kind === "email" ? "✉" : d.kind === "alias" ? "~" : d.kind === "phone" ? "☎" : d.kind === "location" ? "⌖" : d.kind === "leak" ? "⚠" : d.kind === "person" ? "◆" : d.disc;
+      const discContent = d.kind === "email" ? "✉" : d.kind === "alias" ? "~" : d.kind === "phone" ? "☎" : d.kind === "location" ? "⌖" : d.kind === "leak" ? "⚠" : d.kind === "person" ? "◆" : d.kind === "org" ? "▣" : d.disc;
       el.innerHTML = `<div class="disc">${discContent}</div><div class="tag">${escapeHtml(d.handle)}</div><div class="conf">${d.confidence}%</div>`;
       bodiesEl.appendChild(el);
       elsRef.current[d.id] = el;
@@ -421,6 +443,19 @@ export default function OrbitBoard() {
           ctx.stroke(); ctx.setLineDash([]);
         });
       });
+      // relationship edges (network: follows / member / mention) — deliberately
+      // muted and differently dashed so "who they know" never reads as "same person"
+      nodes.forEach((d) => {
+        if (!d.relations) return;
+        d.relations.forEach((rel) => {
+          const e = byId[rel.to];
+          if (!e) return;
+          ctx.globalAlpha = 0.28 * Math.min(d.op, e.op) * Math.min(dim(d.id), dim(e.id));
+          ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(e.x, e.y);
+          ctx.strokeStyle = cssv("--ink-3"); ctx.lineWidth = 0.8; ctx.setLineDash([1, 4]);
+          ctx.stroke(); ctx.setLineDash([]);
+        });
+      });
       ctx.globalAlpha = 1;
       ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fillStyle = cssv("--accent"); ctx.fill();
       ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(cx, cy, 13, 0, Math.PI * 2); ctx.strokeStyle = cssv("--accent"); ctx.lineWidth = 1; ctx.stroke();
@@ -484,6 +519,30 @@ export default function OrbitBoard() {
 
   function openDossier() {
     setDossier(buildDossier(currentSignals()));
+  }
+
+  // Monitoring: re-scan the seed and diff against the current board — what appeared,
+  // vanished, or changed since. Turns a one-shot recon into an investigation over time.
+  async function runMonitor() {
+    const u = seedRef.current.trim();
+    const before = currentSignals();
+    if (!u || monitoring || !before.length) { if (!before.length) flashMsg("scan first, then monitor for changes"); return; }
+    setMonitoring(true); setScanMsg("monitoring · re-scanning…");
+    try {
+      const cids = [...enabledRef.current].join(",");
+      const res = await fetch(`/api/scan?username=${encodeURIComponent(u)}&connectors=${encodeURIComponent(cids)}`);
+      const data = await res.json();
+      if (!res.ok || !data.signals) { setScanMsg("monitor scan failed"); return; }
+      const diff = diffSnapshots(before, data.signals as Signal[]);
+      setMonitor(diff);
+      rebuildRef.current(data.signals, false); // adopt the fresh state as current
+      setScanMsg(diff.summary);
+    } catch {
+      setScanMsg("network unavailable");
+    } finally {
+      setMonitoring(false);
+      setTimeout(() => setScanMsg(null), 5000);
+    }
   }
 
   function dossierBlock(label: string, items: string[]) {
@@ -725,6 +784,8 @@ export default function OrbitBoard() {
         );
       })()}
 
+      {view === "map" && <MapView signals={currentSignals()} onSelect={(id) => setSelectedId(id)} />}
+
       <div className="chrome">
         <div className="wordmark">TUSNA <small>ORBIT</small></div>
         <label className="seed-in">
@@ -740,6 +801,7 @@ export default function OrbitBoard() {
           <button className={view === "board" ? "on" : ""} onClick={() => setView("board")}>ORBIT</button>
           <button className={view === "table" ? "on" : ""} onClick={() => setView("table")}>TABLE</button>
           <button className={view === "timeline" ? "on" : ""} onClick={() => setView("timeline")}>TIMELINE</button>
+          <button className={view === "map" ? "on" : ""} onClick={() => setView("map")}>MAP</button>
         </div>
         <div className="flex" />
         <div className="readout">
@@ -752,6 +814,7 @@ export default function OrbitBoard() {
           <button className="btn" onClick={deepScan}>⛏ DEEP</button>
           <button className="btn" onClick={openDossier}>▤ DOSSIER</button>
           <button className="btn" onClick={imageForensics}>⌖ IMG</button>
+          <button className="btn" onClick={runMonitor} disabled={monitoring}>◔ MONITOR</button>
           <button className="btn" onClick={saveCurrent}>SAVE</button>
           <button className="btn" onClick={exportCurrent}>EXPORT</button>
           <button className="btn" onClick={() => fileRef.current?.click()}>IMPORT</button>
@@ -829,7 +892,8 @@ export default function OrbitBoard() {
       {addForm && (
         <div className="add-overlay" onClick={() => setAddForm(null)}>
           <div className="add-card" onClick={(e) => e.stopPropagation()}>
-            <div className="add-title">ADD PRESENCE{addForm.via ? <em> · via {addForm.via}</em> : null}</div>
+            <div className="add-title">CAPTURE EVIDENCE{addForm.via ? <em> · via {addForm.via}</em> : null}</div>
+            <div className="add-sub">Bridge a manually-found fact (Instagram, LinkedIn, a forum…) back into the graph — with chain of custody.</div>
             <label className="add-field"><span>platform</span>
               <input autoFocus value={addForm.platform} placeholder="e.g. INSTAGRAM" onChange={(e) => setAddForm({ ...addForm, platform: e.target.value })} />
             </label>
@@ -839,9 +903,15 @@ export default function OrbitBoard() {
             <label className="add-field"><span>url (optional)</span>
               <input value={addForm.url} placeholder="https://…" onChange={(e) => setAddForm({ ...addForm, url: e.target.value })} />
             </label>
+            <label className="add-field"><span>note (optional)</span>
+              <input value={addForm.note} placeholder="what you saw / why it matches" onChange={(e) => setAddForm({ ...addForm, note: e.target.value })} />
+            </label>
+            <label className="add-field"><span>screenshot url</span>
+              <input value={addForm.screenshot} placeholder="archived screenshot link (optional)" onChange={(e) => setAddForm({ ...addForm, screenshot: e.target.value })} />
+            </label>
             <div className="add-actions">
               <button className="btn" onClick={() => setAddForm(null)}>CANCEL</button>
-              <button className="btn add-primary" onClick={submitAdd}>ADD TO BOARD</button>
+              <button className="btn add-primary" onClick={submitAdd}>CAPTURE TO BOARD</button>
             </div>
           </div>
         </div>
@@ -886,6 +956,42 @@ export default function OrbitBoard() {
               <b>{selected.evidence.length} evidence items</b> tied to a verifiable source. The score aggregates only these
               signals — <b>no unsourced inference</b> is produced by the LLM.
             </div>
+            {selected.place && (
+              <>
+                <div className="sect">LOCATION</div>
+                <div className="insp-geo">
+                  <span className="geo-coord">⌖ {selected.place.lat.toFixed(4)}, {selected.place.lon.toFixed(4)}</span>
+                  {selected.place.label && <span className="geo-label">{selected.place.label}</span>}
+                  <button className="mini-link" onClick={() => setView("map")}>view on map →</button>
+                </div>
+              </>
+            )}
+            {selected.relations && selected.relations.length > 0 && (
+              <>
+                <div className="sect">RELATIONSHIPS ({selected.relations.length})</div>
+                <div className="insp-rels">
+                  {selected.relations.slice(0, 24).map((r, i) => (
+                    <button className="rel-chip" key={i} onClick={() => setSelectedId(r.to)} title={r.source}>
+                      <b>{r.kind}</b> {r.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {selected.avatarUrl && (
+              <>
+                <div className="sect">REVERSE IMAGE · find the same person elsewhere</div>
+                <div className="insp-rev">
+                  {reverseImageLinks(selected.avatarUrl).map((l) => (
+                    <a className="rev-eng" key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" title={l.note}>{l.label} ↗</a>
+                  ))}
+                  <div className="rev-note">pHash matches the same file; these engines find the same <b>face</b> across different photos. You confirm the visual match.</div>
+                </div>
+              </>
+            )}
+            {selected.collectedAt && (
+              <div className="insp-custody">⛓ collected {new Date(selected.collectedAt).toLocaleString()} · chain of custody</div>
+            )}
             <div className="verbs">
               <button className={"verb on-confirm" + (selected.status === "confirmed" ? " is-confirm" : "")} onClick={() => setStatus(selected.id, "confirmed")}>CONFIRM</button>
               <button className={"verb on-review" + (selected.status === "review" ? " is-review" : "")} onClick={() => setStatus(selected.id, "review")}>REVIEW</button>
@@ -918,6 +1024,30 @@ export default function OrbitBoard() {
 
       {focusId && (
         <button className="focus-chip" onClick={() => setFocusId(null)}>◍ focus active · clear</button>
+      )}
+
+      {monitor && (
+        <div className="monitor-panel">
+          <button className="insp-close" onClick={() => setMonitor(null)} aria-label="close">✕</button>
+          <div className="mon-title">◔ CHANGES SINCE LAST SNAPSHOT</div>
+          <div className="mon-sum">{monitor.summary}</div>
+          {!monitor.hasChanges && <div className="mon-empty">Nothing moved. The footprint is stable.</div>}
+          {monitor.added.map((c, i) => (
+            <div className={"mon-row " + (c.kind === "new-leak" ? "mon-leak" : "mon-add")} key={"a" + i} onClick={() => { setSelectedId(c.id); setMonitor(null); }}>
+              <span className="mon-tag">{c.kind === "new-leak" ? "＋LEAK" : "＋NEW"}</span><span className="mon-label">{c.label}</span><span className="mon-detail">{c.detail}</span>
+            </div>
+          ))}
+          {monitor.changed.map((c, i) => (
+            <div className="mon-row mon-chg" key={"c" + i} onClick={() => { setSelectedId(c.id); setMonitor(null); }}>
+              <span className="mon-tag">±CHG</span><span className="mon-label">{c.label}</span><span className="mon-detail">{c.detail}</span>
+            </div>
+          ))}
+          {monitor.removed.map((c, i) => (
+            <div className="mon-row mon-rem" key={"r" + i}>
+              <span className="mon-tag">−GONE</span><span className="mon-label">{c.label}</span><span className="mon-detail">{c.detail}</span>
+            </div>
+          ))}
+        </div>
       )}
 
       {dossier && (

@@ -15,11 +15,18 @@ interface CasePayload {
 }
 
 // GET /api/cases → { configured, cases }
-export async function GET() {
+// GET /api/cases?history=<caseId> → { configured, snapshots:[{snapId, takenAt, signals}] }
+export async function GET(req: NextRequest) {
   if (!dbEnabled) return NextResponse.json({ configured: false, cases: [] });
+  const history = req.nextUrl.searchParams.get("history");
   try {
     await ensureSchema();
     const q = sql()!;
+    if (history) {
+      const rows = await q`SELECT snap_id, taken_at, signals FROM tusna_snapshots WHERE case_id = ${history} ORDER BY taken_at DESC LIMIT 30`;
+      const snapshots = rows.map((r: any) => ({ snapId: r.snap_id, takenAt: Number(r.taken_at), signals: r.signals }));
+      return NextResponse.json({ configured: true, snapshots });
+    }
     const rows = await q`SELECT id, name, seed, mode, saved_at, signals FROM tusna_cases ORDER BY saved_at DESC`;
     const cases = rows.map((r: any) => ({
       id: r.id, name: r.name, seed: r.seed, mode: r.mode,
@@ -47,6 +54,11 @@ export async function POST(req: NextRequest) {
             ON CONFLICT (id) DO UPDATE SET
               name = EXCLUDED.name, seed = EXCLUDED.seed, mode = EXCLUDED.mode,
               saved_at = EXCLUDED.saved_at, signals = EXCLUDED.signals`;
+    // append an immutable snapshot for chain-of-custody history
+    const snapId = `${c.id}:${c.savedAt}`;
+    await q`INSERT INTO tusna_snapshots (snap_id, case_id, seed, taken_at, signals)
+            VALUES (${snapId}, ${c.id}, ${c.seed}, ${c.savedAt}, ${signals}::jsonb)
+            ON CONFLICT (snap_id) DO NOTHING`;
     return NextResponse.json({ configured: true, case: c });
   } catch (e) {
     return NextResponse.json({ configured: true, error: String(e) }, { status: 500 });

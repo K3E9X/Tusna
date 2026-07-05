@@ -15,6 +15,35 @@ export interface Evidence {
   weight: number;
 }
 
+/** A typed edge to another node that is NOT "the same identity" — it maps the
+ *  person's WORLD (who they know, where they belong). Distinct from linkedIds,
+ *  which asserts same-person. These build the relationship/network graph. */
+export type RelationKind =
+  | "co-commit"   // authored commits in the same repo
+  | "follows"     // seed follows this account
+  | "follower"    // this account follows the seed
+  | "member"      // seed and node belong to the same org/group
+  | "mention"     // mentioned in the seed's content
+  | "co-located"; // shares a resolved location with the seed
+
+export interface Relation {
+  /** id of the node on the other end of the edge */
+  to: string;
+  kind: RelationKind;
+  /** short human label, e.g. "follows on GitHub" */
+  label: string;
+  /** provenance (verifiable) */
+  source: string;
+}
+
+/** Resolved geographic point for the map view. */
+export interface GeoPlace {
+  lat: number;
+  lon: number;
+  /** reverse-geocoded human label, e.g. "Paris, Île-de-France, France" */
+  label?: string;
+}
+
 export interface Signal {
   id: string;
   /** platform / source label, uppercase */
@@ -29,8 +58,10 @@ export interface Signal {
   evidence: Evidence[];
   /** ids of other signals this account is linked to (declared/verified cross-links) */
   linkedIds?: string[];
-  /** node type for styling: platform / email / alias / phone / location / leak / person */
-  kind?: "platform" | "email" | "alias" | "phone" | "person" | "location" | "leak";
+  /** typed edges to other people/orgs — the relationship graph (see RelationKind) */
+  relations?: Relation[];
+  /** node type for styling: platform / email / alias / phone / location / leak / person / org */
+  kind?: "platform" | "email" | "alias" | "phone" | "person" | "location" | "leak" | "org";
   /** public URL of the profile/source, when known (used by "open") */
   url?: string;
   /** real/display name from the profile, when known (used by the dossier) */
@@ -42,6 +73,12 @@ export interface Signal {
   clusterTier?: "verified" | "probable" | "possible";
   /** ISO date the account/footprint appeared (for the timeline), when known */
   createdAt?: string;
+  /** chain of custody — ISO timestamp this fact was collected by Tusna */
+  collectedAt?: string;
+  /** resolved geo point (for location nodes) — drives the map view */
+  place?: GeoPlace;
+  /** public avatar URL (platform nodes) — enables reverse-image search pivots */
+  avatarUrl?: string;
 }
 
 export const SEED = "j0hn_doe";

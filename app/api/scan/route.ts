@@ -12,6 +12,9 @@ import { looksLikePhone, phoneIntel, type PhoneIntel } from "@/lib/phone";
 import { looksLikeName, nameSignals } from "@/lib/name";
 import { scoreEvidence } from "@/lib/scoring";
 import { resolveIdentities, type ResolveNode } from "@/lib/resolve";
+import { githubNetwork } from "@/lib/relations";
+import { inferTimezone } from "@/lib/temporal";
+import { reverseGeocode, forwardGeocode, parseCoords, convergeLocations, type GeoPoint } from "@/lib/geo";
 import type { Signal, Evidence, Status } from "@/lib/signals";
 
 function phoneSignal(intel: PhoneIntel): Signal {
@@ -199,6 +202,7 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
       confidence,
       status,
       evidence,
+      avatarUrl: p.avatar || undefined,
     };
   });
 }
@@ -233,6 +237,9 @@ export async function GET(req: NextRequest) {
   const enabled = cParam != null ? new Set(cParam.split(",").filter(Boolean)) : null;
   const wmnOn = !enabled || enabled.has("whatsmyname");
   const phashOn = !enabled || enabled.has("phash");
+  const networkOn = !enabled || enabled.has("network");
+  const geoOn = !enabled || enabled.has("geo");
+  const collectedAt = new Date().toISOString(); // chain of custody: one stamp per scan
   try {
     let apiProfiles: RawProfile[];
     let wmnHits: RawProfile[];
@@ -398,6 +405,70 @@ export async function GET(req: NextRequest) {
       const set = edges.get(s.id);
       if (set?.size) s.linkedIds = [...set];
     }
+
+    // --- relationship graph + temporal analysis (GitHub public API) ---
+    // Map the person's world (followers/following/orgs) and infer their timezone
+    // from WHEN they are active. Both come from one event-feed fetch.
+    const ghSig = signals.find((s) => s.id === "github");
+    if (networkOn && ghSig) {
+      const net = await githubNetwork(ghSig.handle, ghSig.id, collectedAt);
+      if (net.nodes.length) {
+        const have = new Set(signals.map((s) => s.id));
+        for (const n of net.nodes) if (!have.has(n.id)) { signals.push(n); have.add(n.id); }
+        ghSig.relations = [...(ghSig.relations || []), ...net.relations];
+        ghSig.evidence.push({
+          name: "Network mapped",
+          detail: `${net.relations.length} relation(s): follows / followers / org membership.`,
+          source: "api.github.com · public API", weight: 40,
+        });
+      }
+      const tz = inferTimezone(net.activityTimestamps);
+      if (tz && tz.confidence >= 0.25) {
+        ghSig.evidence.push({
+          name: "Activity timezone",
+          detail: `Public activity peaks consistent with ${tz.label} (from ${tz.samples} events, confidence ${(tz.confidence * 100).toFixed(0)}%).`,
+          source: "temporal analysis · deterministic", weight: Math.round(40 + tz.confidence * 25),
+        });
+      }
+    }
+
+    // --- geospatial resolution + convergence ---
+    // Turn every location signal into a real coordinate (reverse/forward geocode),
+    // then reward locations that several independent sources agree on.
+    if (geoOn) {
+      const locSigs = signals.filter((s) => s.kind === "location");
+      await Promise.all(locSigs.map(async (s) => {
+        const coords = parseCoords(s.handle);
+        try {
+          const place = coords ? await reverseGeocode(coords.lat, coords.lon) : await forwardGeocode(s.handle);
+          if (place) {
+            s.place = place;
+            if (place.label && !coords) s.evidence.push({ name: "Geocoded", detail: place.label, source: "nominatim · OSM", weight: 40 });
+          }
+        } catch { /* offline → skip, node still stands */ }
+      }));
+      const pts: GeoPoint[] = locSigs
+        .filter((s) => s.place)
+        .map((s) => ({ id: s.id, lat: s.place!.lat, lon: s.place!.lon, label: s.place!.label, source: (s.linkedIds || [])[0] || s.id }));
+      const clusters = convergeLocations(pts, 25);
+      for (const c of clusters) {
+        if (c.sources < 2) continue; // convergence = several distinct sources agree
+        for (const m of c.members) {
+          const s = signals.find((x) => x.id === m.id);
+          if (!s) continue;
+          s.evidence.push({
+            name: "Location convergence",
+            detail: `${c.sources} independent sources point to the same area (~${c.radiusKm.toFixed(0)} km spread).`,
+            source: "geo convergence · deterministic", weight: 80,
+          });
+          const rescored = scoreEvidence(s.evidence);
+          s.tier = rescored.tier; s.confidence = rescored.confidence;
+        }
+      }
+    }
+
+    // chain of custody: stamp everything with the collection time of this scan
+    for (const s of signals) if (!s.collectedAt) s.collectedAt = collectedAt;
 
     // --- entity resolution: cluster the accounts into distinct identities ---
     const platIds = new Set(signals.filter((s) => !s.kind || s.kind === "platform").map((s) => s.id));

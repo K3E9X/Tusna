@@ -280,3 +280,46 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .inspector { transition: none; }
 }
+
+/* ---- Map view (Leaflet) ---- */
+.mapwrap { position: fixed; left: 0; right: 0; top: 66px; bottom: 0; z-index: 15; display: flex; flex-direction: column; background: var(--void); }
+.map-toolbar { display: flex; align-items: center; gap: 14px; padding: 10px 22px; border-bottom: 1px solid var(--line-soft); }
+.map-hint { font-size: 11px; color: var(--ink-3); }
+.map-canvas { flex: 1; width: 100%; }
+.map-canvas .leaflet-container { width: 100%; height: 100%; background: var(--void-2); font-family: var(--mono); }
+.leaflet-popup-content { font-family: var(--mono); font-size: 12px; }
+
+/* ---- Inspector: location / relations / reverse-image / custody ---- */
+.insp-geo { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.geo-coord { font-family: var(--mono); font-size: 13px; color: var(--accent); }
+.geo-label { font-size: 11px; color: var(--ink-2); }
+.mini-link { align-self: flex-start; background: none; border: none; color: var(--accent); font-family: var(--mono); font-size: 11px; cursor: pointer; padding: 2px 0; }
+.insp-rels { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.rel-chip { background: var(--void-2); border: 1px solid var(--line); border-radius: 3px; color: var(--ink-2); font-family: var(--mono); font-size: 10.5px; padding: 4px 7px; cursor: pointer; text-align: left; }
+.rel-chip:hover { border-color: var(--accent); color: var(--ink); }
+.rel-chip b { color: var(--accent); font-weight: 600; margin-right: 4px; }
+.insp-rev { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.rev-eng { background: var(--accent-dim); border: 1px solid var(--line); border-radius: 3px; color: var(--accent); font-family: var(--mono); font-size: 11px; padding: 5px 9px; text-decoration: none; }
+.rev-eng:hover { border-color: var(--accent); }
+.rev-note { flex-basis: 100%; font-size: 10.5px; color: var(--ink-3); line-height: 1.5; margin-top: 4px; }
+.insp-custody { margin-top: 16px; font-size: 10px; letter-spacing: .04em; color: var(--ink-3); }
+
+/* ---- Manual capture extra ---- */
+.add-sub { font-size: 10.5px; color: var(--ink-3); line-height: 1.5; margin-bottom: 14px; }
+
+/* ---- Monitoring panel ---- */
+.monitor-panel { position: fixed; right: 20px; top: 78px; width: 380px; max-height: 72vh; overflow: auto; z-index: 40;
+  background: var(--panel); backdrop-filter: blur(16px); border: 1px solid var(--accent); border-radius: 6px; padding: 16px 16px 12px; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+.mon-title { font-size: 10px; letter-spacing: .2em; color: var(--accent); margin-bottom: 6px; }
+.mon-sum { font-size: 12px; color: var(--ink); margin-bottom: 12px; }
+.mon-empty { font-size: 11px; color: var(--ink-3); }
+.mon-row { display: grid; grid-template-columns: 58px 1fr; gap: 4px 8px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--line-soft); cursor: pointer; }
+.mon-row:hover { background: var(--accent-dim); }
+.mon-tag { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; padding: 2px 4px; border-radius: 3px; text-align: center; }
+.mon-add .mon-tag { color: var(--confirm); border: 1px solid var(--confirm); }
+.mon-leak .mon-tag { color: var(--reject); border: 1px solid var(--reject); }
+.mon-chg .mon-tag { color: var(--accent); border: 1px solid var(--accent); }
+.mon-rem { cursor: default; }
+.mon-rem .mon-tag { color: var(--ink-3); border: 1px solid var(--ink-4); }
+.mon-label { font-size: 12px; color: var(--ink); }
+.mon-detail { grid-column: 2; font-size: 10.5px; color: var(--ink-3); line-height: 1.4; }

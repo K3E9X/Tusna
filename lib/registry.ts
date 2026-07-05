@@ -40,6 +40,8 @@ export const BUILTIN_APPS: AppDef[] = [
   { id: "hudsonrock", name: "Hudson Rock", category: "Leaks", kind: "builtin", input: "both", status: "free", desc: "Infostealer intel (free): is the email/username compromised + which services it logged into. Defensive." },
   { id: "intelx", name: "Intelligence X", category: "Leaks", kind: "builtin", input: "both", status: "freemium", desc: "Breaches / pastes / darkweb. Needs INTELX_API_KEY. Sensitive — legal basis required." },
   { id: "phash", name: "Avatar pHash", category: "Correlation", kind: "builtin", input: "image", status: "free", desc: "Links accounts by matching profile photos." },
+  { id: "network", name: "Network graph", category: "Correlation", kind: "builtin", input: "username", status: "free", desc: "GitHub followers / following / orgs → related people + activity-based timezone." },
+  { id: "geo", name: "Geo resolve", category: "Correlation", kind: "builtin", input: "both", status: "free", desc: "Geocode locations (Nominatim) + reward locations several sources agree on. Powers the map." },
 ];
 
 // Curated cipher387-style manual pivots (open externally with the seed).

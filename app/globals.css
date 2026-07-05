@@ -446,3 +446,13 @@ body {
 .assist-unc { margin: 0; padding-left: 18px; }
 .assist-unc li { font-size: 11px; color: var(--ink-2); line-height: 1.5; }
 .assist-foot { font-size: 9.5px; color: var(--ink-4); line-height: 1.5; margin-top: 14px; border-top: 1px solid var(--line-soft); padding-top: 10px; }
+
+/* compact API card + section nav so every tool is visible/reachable */
+.apicard .add-field { margin-bottom: 8px; }
+.apicard .add-field span { margin-bottom: 3px; }
+.apicard .add-field input, .apicard .api-select { padding: 7px 9px; font-size: 12px; }
+.apicard .guide-sect { margin: 16px 0 6px; scroll-margin-top: 12px; }
+.api-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+.api-nav button { background: var(--void-2); border: 1px solid var(--line); color: var(--ink-2);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; padding: 5px 9px; border-radius: 12px; cursor: pointer; }
+.api-nav button:hover { border-color: var(--accent); color: var(--accent); }

@@ -1168,10 +1168,15 @@ export default function OrbitBoard() {
             <div className="apicard" onClick={(e) => e.stopPropagation()}>
               <button className="insp-close" onClick={() => setApiOpen(false)} aria-label="close">✕</button>
               <div className="insp-plat">API · keys &amp; connections</div>
-              <div className="add-sub">Keys are stored in your browser only and sent per request — never saved on the server. Each field has a live Test (ping/pong).</div>
+              <div className="add-sub">Keys are stored in your browser only, sent per request — never saved on the server. Every field has a live Test (ping/pong). Scroll for all sections:</div>
+              <div className="api-nav">
+                <button onClick={() => document.getElementById("api-llm")?.scrollIntoView({ behavior: "smooth" })}>LLM assistant</button>
+                <button onClick={() => document.getElementById("api-leak")?.scrollIntoView({ behavior: "smooth" })}>Leak sources · IntelX · RF</button>
+                <button onClick={() => document.getElementById("api-collector")?.scrollIntoView({ behavior: "smooth" })}>Collector</button>
+              </div>
 
-              <div className="guide-sect">Investigation assistant (LLM)</div>
-              <div className="api-sub">Free options: OpenRouter (many <b>:free</b> models), z.ai GLM-4-Flash, Qwen, or local Ollama. Pick a preset, paste your key, Test.</div>
+              <div className="guide-sect" id="api-llm">Investigation assistant (LLM)</div>
+              <div className="api-sub">Free: OpenRouter (<b>:free</b> models), z.ai GLM-4-Flash, Qwen, or local Ollama.</div>
               <label className="add-field"><span>preset</span>
                 <select className="api-select" value="" onChange={(e) => { const pr = LLM_PRESETS.find((x) => x.id === e.target.value); if (pr) updateSettings({ llmUrl: pr.url, llmModel: pr.model, llmWeb: pr.web }); }}>
                   <option value="">— choose a provider —</option>
@@ -1186,7 +1191,7 @@ export default function OrbitBoard() {
               <label className="api-check"><input type="checkbox" checked={!!settings.llmWeb} onChange={(e) => updateSettings({ llmWeb: e.target.checked })} /> allow web search (OpenRouter <b>:online</b>) — lets the assistant look up what our connectors can&apos;t reach</label>
               <PingDot svc="llm" />
 
-              <div className="guide-sect">Leak / breach sources</div>
+              <div className="guide-sect" id="api-leak">Leak / breach sources</div>
               <div className="add-cols">
                 <label className="add-field"><span>Intelligence X key</span><input type="password" value={settings.intelx || ""} placeholder="freemium key" onChange={(e) => updateSettings({ intelx: e.target.value })} /></label>
                 <div className="api-testcol"><PingDot svc="intelx" /></div>
@@ -1197,7 +1202,7 @@ export default function OrbitBoard() {
               </div>
               <div className="api-free"><span>Hudson Rock (infostealer intel)</span> — free, no key. <PingDot svc="hudsonrock" /></div>
 
-              <div className="guide-sect">Deep-scan collector (Maigret / Holehe / SpiderFoot)</div>
+              <div className="guide-sect" id="api-collector">Deep-scan collector (Maigret / Holehe / SpiderFoot)</div>
               <div className="add-cols">
                 <label className="add-field"><span>collector url</span><input value={settings.collectorUrl || ""} placeholder="https://…onrender.com" onChange={(e) => updateSettings({ collectorUrl: e.target.value })} /></label>
                 <label className="add-field"><span>token</span><input type="password" value={settings.collectorToken || ""} placeholder="optional" onChange={(e) => updateSettings({ collectorToken: e.target.value })} /></label>

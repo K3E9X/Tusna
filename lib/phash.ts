@@ -40,16 +40,11 @@ export function hamming(a: string, b: string): number {
   return d;
 }
 
-/** Fetch an image and compute its dHash. Returns null on any failure (graceful). */
-export async function dHashFromUrl(url: string, timeoutMs = 5000): Promise<string | null> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+/** Compute a dHash from raw image bytes already in hand. Returns null on failure. */
+export async function dHashFromBuffer(buf: Uint8Array): Promise<string | null> {
   try {
-    const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": UA }, cache: "no-store" });
-    if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
     if (!buf.length) return null;
-    const img = await Jimp.read(buf);
+    const img = await Jimp.read(Buffer.from(buf));
     img.resize(HASH_W, HASH_H).greyscale();
     const data = img.bitmap.data; // RGBA
     const gray: number[] = [];
@@ -57,9 +52,29 @@ export async function dHashFromUrl(url: string, timeoutMs = 5000): Promise<strin
     return computeDHash(gray);
   } catch {
     return null;
+  }
+}
+
+/** Fetch an image and return its raw bytes (bounded, graceful). Null on failure. */
+export async function fetchImageBuffer(url: string, timeoutMs = 5000): Promise<Uint8Array | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": UA }, cache: "no-store" });
+    if (!res.ok) return null;
+    const buf = new Uint8Array(await res.arrayBuffer());
+    return buf.length ? buf : null;
+  } catch {
+    return null;
   } finally {
     clearTimeout(t);
   }
+}
+
+/** Fetch an image and compute its dHash. Returns null on any failure (graceful). */
+export async function dHashFromUrl(url: string, timeoutMs = 5000): Promise<string | null> {
+  const buf = await fetchImageBuffer(url, timeoutMs);
+  return buf ? dHashFromBuffer(buf) : null;
 }
 
 /** Similarity verdict for a pair of hashes. */

@@ -6,6 +6,8 @@
 // public APIs are closed and scraping breaks their ToS. Those belong to the "manual
 // pivots" catalogue (cipher387), not to automated connectors.
 
+import type { ImageMeta } from "./metadata";
+
 export interface ProfileLink {
   /** service identifier, e.g. "twitter", "github", "reddit" */
   service: string;
@@ -27,6 +29,8 @@ export interface RawProfile {
   avatar?: string;
   /** perceptual hash (dHash) of the avatar, filled in by the enrichment step */
   avatarHash?: string;
+  /** image metadata (EXIF/GPS/IPTC/XMP) extracted from the avatar, when present */
+  exif?: ImageMeta;
   /** free-text location from the profile, when the source exposes it */
   location?: string;
   createdAt?: string;

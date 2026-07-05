@@ -154,6 +154,45 @@ export default function OrbitBoard() {
 
   function flashMsg(m: string) { setScanMsg(m); setTimeout(() => setScanMsg(null), 3000); }
 
+  // On-demand image forensics: extract the maximum metadata (EXIF/GPS/camera/date) from
+  // any image URL. If GPS is embedded, drop a precise location node onto the board.
+  async function imageForensics() {
+    const url = (window.prompt("Image URL — extract EXIF / GPS / camera metadata:") || "").trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) { flashMsg("http(s) image url required"); return; }
+    setScanMsg("reading metadata…");
+    try {
+      const res = await fetch(`/api/metadata?url=${encodeURIComponent(url)}`);
+      const data = await res.json();
+      if (!res.ok) { setScanMsg(data?.error || "metadata read failed"); return; }
+      if (!data.found) { setScanMsg("no metadata — image was stripped clean"); return; }
+      const m = data.meta as { gps?: { lat: number; lon: number }; make?: string; model?: string; dateTaken?: string; software?: string };
+      const parts: string[] = [];
+      if (m.make || m.model) parts.push([m.make, m.model].filter(Boolean).join(" "));
+      if (m.dateTaken) parts.push(m.dateTaken);
+      if (m.software) parts.push(m.software);
+      if (m.gps) {
+        const coords = `${m.gps.lat.toFixed(5)}, ${m.gps.lon.toFixed(5)}`;
+        addNodeRef.current({
+          id: "attr:location:" + coords.replace(/[^0-9\-]/g, ""),
+          platform: "LOCATION", handle: coords, disc: "GEO", kind: "location",
+          confidence: 74, tier: "probable", status: "review",
+          evidence: [
+            { name: "GPS from image", detail: `Coordinates ${coords} embedded in the image EXIF — precise, not self-reported.`, source: "EXIF · exifr", weight: 88 },
+            ...(parts.length ? [{ name: "Image context", detail: parts.join(" · "), source: "EXIF", weight: 45 }] : []),
+          ],
+        });
+        setScanMsg(`GPS ${coords} → location node added` + (parts.length ? ` · ${parts.join(" · ")}` : ""));
+      } else {
+        setScanMsg("metadata: " + (parts.join(" · ") || "camera/date only, no GPS"));
+      }
+    } catch {
+      setScanMsg("network unavailable");
+    } finally {
+      setTimeout(() => setScanMsg(null), 6000);
+    }
+  }
+
   useEffect(() => { seedRef.current = seed; }, [seed]);
   useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
 
@@ -712,6 +751,7 @@ export default function OrbitBoard() {
           <button className="btn btn-primary" onClick={investigate} disabled={scanning}>⚡ INVESTIGATE</button>
           <button className="btn" onClick={deepScan}>⛏ DEEP</button>
           <button className="btn" onClick={openDossier}>▤ DOSSIER</button>
+          <button className="btn" onClick={imageForensics}>⌖ IMG</button>
           <button className="btn" onClick={saveCurrent}>SAVE</button>
           <button className="btn" onClick={exportCurrent}>EXPORT</button>
           <button className="btn" onClick={() => fileRef.current?.click()}>IMPORT</button>

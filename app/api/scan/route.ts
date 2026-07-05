@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { scanUsername, type RawProfile } from "@/lib/connectors";
 import { scanWmn } from "@/lib/wmn";
 import { scanEmail } from "@/lib/email";
-import { dHashFromUrl, avatarMatch } from "@/lib/phash";
+import { dHashFromBuffer, fetchImageBuffer, avatarMatch } from "@/lib/phash";
+import { metaFromBuffer, metaEvidence } from "@/lib/metadata";
 import { extractFromText, normId } from "@/lib/extract";
 import { collect, holeheAccounts, collectorEnabled } from "@/lib/collector";
 import { searchIntelX, intelxEnabled } from "@/lib/intelx";
@@ -60,12 +61,22 @@ const serviceToPlatform = (s: string) => SERVICE_TO_PLATFORM[s.toLowerCase()] ||
 const isRealService = (s: string) => !SKIP_SERVICE.has(s.toLowerCase());
 const disc2 = (name: string) => (name.replace(/[^A-Za-z0-9]/g, "").slice(0, 2) || "LK").toUpperCase();
 
-/** Compute perceptual hashes for profiles that expose an avatar (bounded, graceful). */
+/**
+ * Enrich profiles that expose an avatar: fetch each image once, then extract BOTH
+ * the perceptual hash (for cross-account matching) and the maximum image metadata
+ * (EXIF/GPS/IPTC/XMP). Bounded and fully graceful — any failure just skips.
+ */
 async function enrichAvatars(profiles: RawProfile[], max = 14): Promise<void> {
   const targets = profiles.filter((p) => p.avatar).slice(0, max);
   await Promise.all(
     targets.map(async (p) => {
-      try { p.avatarHash = (await dHashFromUrl(p.avatar!)) || undefined; } catch { /* skip */ }
+      try {
+        const buf = await fetchImageBuffer(p.avatar!);
+        if (!buf) return;
+        const [hash, meta] = await Promise.all([dHashFromBuffer(buf), metaFromBuffer(buf)]);
+        if (hash) p.avatarHash = hash;
+        if (meta) p.exif = meta;
+      } catch { /* skip */ }
     }),
   );
 }
@@ -128,6 +139,14 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
     if (p.displayName) evidence.push({ name: "Public name", detail: p.displayName, source: p.source, weight: 55 });
     if (p.bio) evidence.push({ name: "Public bio", detail: p.bio.slice(0, 140), source: p.source, weight: 44 });
     if (p.avatar) evidence.push({ name: "Avatar present", detail: p.avatarHash ? "Public profile image (hashed for correlation)." : "Public profile image.", source: p.source, weight: 48 });
+
+    // image metadata that survived on the avatar (GPS/camera/date/author) — rare on
+    // social platforms (they strip it) but pure gold when it leaks through
+    if (p.exif) {
+      for (const me of metaEvidence(p.exif)) {
+        evidence.push({ name: me.name, detail: me.detail, source: `${me.source} · from ${p.platform} avatar`, weight: me.weight });
+      }
+    }
     if (p.createdAt) evidence.push({ name: "Account age", detail: `Account created on ${p.createdAt.slice(0, 10)}.`, source: p.source, weight: 30 });
 
     // cross-signal: display name shared with another platform (SOFT — a shared name
@@ -305,6 +324,8 @@ export async function GET(req: NextRequest) {
         ...ex.emails.map((v) => ({ kind: "EMAIL" as const, value: v })),
         ...ex.aliases.map((v) => ({ kind: "ALIAS" as const, value: v })),
         ...(p.location ? [{ kind: "LOCATION" as const, value: p.location.trim() }] : []),
+        // GPS embedded in the avatar → a hard, coordinate-precise location node
+        ...(p.exif?.gps ? [{ kind: "LOCATION" as const, value: `${p.exif.gps.lat.toFixed(5)}, ${p.exif.gps.lon.toFixed(5)}` }] : []),
       ];
       for (const it of items) {
         const vn = normId(it.value);
@@ -324,19 +345,26 @@ export async function GET(req: NextRequest) {
       ALIAS: { disc: "AL", kind: "alias", label: "Alias discovered" },
       LOCATION: { disc: "GEO", kind: "location", label: "Location" },
     };
+    const GPS_RE = /^-?\d{1,3}\.\d+,\s*-?\d{1,3}\.\d+$/;
     for (const a of attrs.values()) {
       const plats = [...a.sources].map((id) => sigById.get(id)?.platform).filter(Boolean) as string[];
       const meta = ATTR_META[a.kind];
+      const isGps = a.kind === "LOCATION" && GPS_RE.test(a.value);
       signals.push({
         id: a.id,
         platform: a.kind,
         handle: a.kind === "ALIAS" ? "@" + a.value : a.value,
         disc: meta.disc,
         kind: meta.kind,
-        confidence: a.kind === "LOCATION" ? 58 : 52,
+        confidence: isGps ? 70 : a.kind === "LOCATION" ? 58 : 52,
         tier: "possible",
         status: "candidate",
-        evidence: [{
+        evidence: [ isGps ? {
+          name: "GPS from image",
+          detail: `Coordinates ${a.value} embedded in the avatar EXIF on ${plats.slice(0, 3).join(", ") || "a collected profile"} — precise, not self-reported.`,
+          source: "EXIF · exifr",
+          weight: 82,
+        } : {
           name: meta.label,
           detail: `From the profile ${a.kind === "LOCATION" ? "location field" : "text"} on ${plats.slice(0, 3).join(", ") || "a collected profile"}.`,
           source: "entity extraction · from collected profiles",

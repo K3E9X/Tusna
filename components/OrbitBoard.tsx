@@ -817,6 +817,11 @@ export default function OrbitBoard() {
               <b>{dossier.identificationScore}</b><span>IDENTIFICATION<br />CONFIDENCE</span>
               <span className="dossier-note">rule-based synthesis of verified nodes — no unsourced inference</span>
             </div>
+            {dossier.primaryCluster && (
+              <div className={"dossier-cluster t-" + dossier.primaryCluster.tier}>
+                ◆ {dossier.primaryCluster.size} accounts resolved as one identity · {dossier.primaryCluster.tier.toUpperCase()}
+              </div>
+            )}
             <button className="pivot-btn" style={{ marginTop: 16 }} onClick={synthesizeDossier} disabled={llmBusy}>
               {llmBusy ? "✦ synthesizing…" : "✦ SYNTHESIZE (grounded LLM brief)"}
             </button>

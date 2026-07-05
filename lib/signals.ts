@@ -37,6 +37,9 @@ export interface Signal {
   displayName?: string;
   /** qualitative correlation tier (honest headline; confidence is secondary) */
   tier?: "verified" | "probable" | "possible" | "weak";
+  /** entity-resolution cluster this node belongs to (accounts of one identity) */
+  clusterId?: string;
+  clusterTier?: "verified" | "probable" | "possible";
 }
 
 export const SEED = "j0hn_doe";

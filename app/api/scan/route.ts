@@ -10,6 +10,7 @@ import { hudsonRockEmail, hudsonRockUsername } from "@/lib/hudsonrock";
 import { looksLikePhone, phoneIntel, type PhoneIntel } from "@/lib/phone";
 import { looksLikeName, nameSignals } from "@/lib/name";
 import { scoreEvidence } from "@/lib/scoring";
+import { resolveIdentities, type ResolveNode } from "@/lib/resolve";
 import type { Signal, Evidence, Status } from "@/lib/signals";
 
 function phoneSignal(intel: PhoneIntel): Signal {
@@ -368,6 +369,48 @@ export async function GET(req: NextRequest) {
       const set = edges.get(s.id);
       if (set?.size) s.linkedIds = [...set];
     }
+
+    // --- entity resolution: cluster the accounts into distinct identities ---
+    const platIds = new Set(signals.filter((s) => !s.kind || s.kind === "platform").map((s) => s.id));
+    const rnodes: ResolveNode[] = merged
+      .filter((p) => platIds.has(p.id))
+      .map((p) => ({
+        id: p.id,
+        handleN: norm(p.handle.replace(/^u\//, "")),
+        nameN: p.displayName ? norm(p.displayName) : undefined,
+        locN: p.location ? norm(p.location) : undefined,
+        avatarHash: p.avatarHash,
+      }));
+    const declaredPairs: [string, string][] = [];
+    for (const p of merged) {
+      if (!platIds.has(p.id) || !p.links) continue;
+      for (const l of p.links) {
+        const platN = norm(serviceToPlatform(l.service));
+        const q = merged.find((x) => x.id !== p.id && platIds.has(x.id) &&
+          (norm(x.platform) === platN || (l.handle && norm(x.handle.replace(/^u\//, "")) === norm(l.handle))));
+        if (q) declaredPairs.push([p.id, q.id]);
+      }
+    }
+    const sharedAttr = signals
+      .filter((s) => s.kind === "email" || s.kind === "phone")
+      .map((s) => (s.linkedIds || []).filter((id) => platIds.has(id)))
+      .filter((g) => g.length >= 2);
+    const resolution = resolveIdentities(rnodes, declaredPairs, sharedAttr);
+    const clusterTierOf: Record<string, "verified" | "probable" | "possible"> = {};
+    for (const c of resolution.clusters) clusterTierOf[c.id] = c.tier;
+    for (const s of signals) {
+      if (platIds.has(s.id)) {
+        const c = resolution.clusterOf[s.id];
+        if (c) { s.clusterId = c; s.clusterTier = clusterTierOf[c]; }
+      }
+    }
+    // attribute nodes inherit the cluster of their first resolved platform neighbor
+    for (const s of signals) {
+      if (platIds.has(s.id)) continue;
+      const nb = (s.linkedIds || []).find((id) => platIds.has(id));
+      if (nb && resolution.clusterOf[nb]) { s.clusterId = resolution.clusterOf[nb]; s.clusterTier = clusterTierOf[resolution.clusterOf[nb]]; }
+    }
+
     signals.sort((a, b) => b.confidence - a.confidence);
     return NextResponse.json({
       seed: q,

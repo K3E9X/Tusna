@@ -124,6 +124,10 @@ body {
 .dossier-score b { font-size: 40px; font-weight: 400; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1; }
 .dossier-score > span { font-size: 9.5px; letter-spacing: .16em; color: var(--ink-3); }
 .dossier-note { flex-basis: 100%; font-size: 9.5px; letter-spacing: .04em; color: var(--ink-4); margin-top: 4px; }
+.dossier-cluster { margin-top: 14px; padding: 10px 14px; border-radius: 5px; font-size: 12px; letter-spacing: .04em; border: 1px solid; }
+.dossier-cluster.t-verified { color: var(--confirm); border-color: color-mix(in srgb, var(--confirm) 45%, transparent); }
+.dossier-cluster.t-probable { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.dossier-cluster.t-possible { color: var(--type-email); border-color: color-mix(in srgb, var(--type-email) 45%, transparent); }
 .dossier-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
 .dossier-block { border: 1px solid var(--line-soft); border-radius: 5px; padding: 10px 12px; min-height: 54px; }
 .db-label { font-size: 9px; letter-spacing: .14em; color: var(--ink-3); margin-bottom: 6px; }

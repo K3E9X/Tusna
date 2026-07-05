@@ -105,10 +105,15 @@ A "68% match" nobody calibrated is worthless. Every node gets a **qualitative ti
 
 A single weak signal can never masquerade as strong. The numeric confidence is shown but secondary — the tier is what you trust.
 
-## Two views
+## Deep scan (async jobs)
+
+Long collectors (SpiderFoot, deep Maigret, Holehe) can't run inside a serverless timeout, so the [worker](collector/) runs them as **background jobs**: **⛏ DEEP** starts a job for the seed (Maigret for a username, Holehe for an email, SpiderFoot for a domain), Tusna polls it, and merges the normalized result into the board when it finishes — with a live `running… Ns` readout. Needs the worker (`COLLECTOR_URL`); the fast built-in scan works without it.
+
+## Three views
 
 - **ORBIT** — the gravitational graph, for exploring and seeing the web of links.
 - **TABLE** — a dense, sortable, filterable data table (tier · type · platform · handle · corroborating signals · status), for actually working the data.
+- **TIMELINE** — the footprint over time (account creation, compromise dates), year by year.
 
 ## Intelligence layer — the DOSSIER
 

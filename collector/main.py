@@ -14,10 +14,14 @@ import os
 import re
 import subprocess
 import tempfile
+import threading
+import time
+import uuid
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
+SPIDERFOOT = os.environ.get("SPIDERFOOT_PATH", "/opt/spiderfoot/sf.py")
 
 app = FastAPI(title="Tusna Collector", version="0.1")
 app.add_middleware(
@@ -102,9 +106,99 @@ def run_holehe(email: str, timeout: int = 55) -> list[str]:
     return used
 
 
+def run_spiderfoot(target: str, timeout: int = 240) -> list[dict]:
+    """Run a passive SpiderFoot scan (async job — can take minutes). Returns events."""
+    if not os.path.exists(SPIDERFOOT):
+        return []
+    try:
+        proc = subprocess.run(
+            ["python3", SPIDERFOOT, "-s", target, "-o", "json", "-q", "-u", "passive"],
+            capture_output=True, timeout=timeout, text=True,
+        )
+    except Exception:
+        return []
+    try:
+        data = json.loads(proc.stdout or "[]")
+    except Exception:
+        return []
+    events: list[dict] = []
+    for row in data if isinstance(data, list) else []:
+        if isinstance(row, dict):
+            events.append({
+                "type": row.get("type") or row.get("event_type"),
+                "data": row.get("data"),
+                "module": row.get("module") or row.get("source_module"),
+            })
+        elif isinstance(row, list) and len(row) >= 5:
+            events.append({"type": row[4], "data": row[1], "module": row[3]})
+    return [e for e in events if e.get("type") and e.get("data")]
+
+
+# ---- async job runner (long scans that exceed a serverless timeout) ----
+JOBS: dict[str, dict] = {}
+JOBS_LOCK = threading.Lock()
+
+
+def _set(jid: str, **kw):
+    with JOBS_LOCK:
+        if jid in JOBS:
+            JOBS[jid].update(kw)
+
+
+def _run_job(jid: str, jtype: str, target: str, opts: dict):
+    try:
+        if jtype == "maigret":
+            result = normalize(target, run_maigret(target, opts.get("top", 400), opts.get("timeout", 10)))
+        elif jtype == "holehe":
+            result = {"used": run_holehe(target)}
+        elif jtype == "spiderfoot":
+            result = {"events": run_spiderfoot(target, opts.get("timeout", 240))}
+        else:
+            raise ValueError("unknown job type")
+        _set(jid, status="done", result=result, finished=time.time())
+    except Exception as e:  # noqa: BLE001
+        _set(jid, status="error", error=str(e), finished=time.time())
+
+
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "spiderfoot": os.path.exists(SPIDERFOOT)}
+
+
+@app.post("/jobs")
+def create_job(
+    type: str = Query(..., pattern="^(maigret|holehe|spiderfoot)$"),
+    target: str = Query(..., min_length=1, max_length=120),
+    top: int = Query(400, ge=10, le=1500),
+    timeout: int = Query(10, ge=2, le=30),
+    token: str = Query(""),
+):
+    if TOKEN and token != TOKEN:
+        return {"error": "unauthorized"}
+    jid = uuid.uuid4().hex[:16]
+    with JOBS_LOCK:
+        # keep the store bounded
+        if len(JOBS) > 200:
+            for k in sorted(JOBS, key=lambda k: JOBS[k].get("started", 0))[:100]:
+                JOBS.pop(k, None)
+        JOBS[jid] = {"type": type, "target": target, "status": "running", "started": time.time()}
+    threading.Thread(target=_run_job, args=(jid, type, target, {"top": top, "timeout": timeout}), daemon=True).start()
+    return {"jobId": jid, "status": "running"}
+
+
+@app.get("/jobs/{jid}")
+def get_job(jid: str, token: str = Query("")):
+    if TOKEN and token != TOKEN:
+        return {"error": "unauthorized"}
+    with JOBS_LOCK:
+        j = JOBS.get(jid)
+    if not j:
+        return {"status": "not_found"}
+    return {
+        "status": j["status"], "type": j["type"],
+        "result": j.get("result"), "error": j.get("error"),
+        "elapsed": round(time.time() - j["started"], 1),
+    }
 
 
 @app.get("/holehe")

@@ -26,6 +26,20 @@ GET /holehe?email=<e>[&token=<secret>]
 → { email, used: ["instagram.com", "spotify.com", …], count }
 ```
 
+**Async jobs** — for scans that take minutes (SpiderFoot, deep Maigret) and would
+blow a serverless timeout. The worker runs them in a background thread; Tusna starts
+a job and polls it.
+
+```
+POST /jobs?type=maigret|holehe|spiderfoot&target=<t>[&top=&timeout=&token=]  → { jobId, status }
+GET  /jobs/<jobId>[?token=]  → { status: running|done|error, elapsed, result }
+```
+
+**SpiderFoot** (200+ modules) is installed in the image and exposed as the `spiderfoot`
+job type — best for **domain / infra** targets (passive use-case). Keyless coverage on
+*people* overlaps Maigret, so use it mainly for domains. `GET /health` reports whether
+SpiderFoot is available.
+
 `sites` = claimed accounts (with any profile fields Maigret extracted); `identifiers` =
 aggregated discovered data (other handles, emails, names). `used` = mainstream sites where
 the email is registered (via password-recovery probing, silent). Tusna turns all of it into

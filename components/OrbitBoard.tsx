@@ -48,6 +48,42 @@ export default function OrbitBoard() {
   const [verification, setVerification] = useState<Verification | null>(null);
   const [llmBusy, setLlmBusy] = useState(false);
 
+  const deepRef = useRef(false);
+  const [deepStatus, setDeepStatus] = useState<string | null>(null);
+
+  async function deepScan() {
+    if (deepRef.current) return;
+    const q = seedRef.current.trim();
+    if (!q) return;
+    const isEmailSeed = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(q);
+    const isDomain = !isEmailSeed && !q.includes(" ") && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(q);
+    const type = isDomain ? "spiderfoot" : isEmailSeed ? "holehe" : "maigret";
+    deepRef.current = true; setDeepStatus(`deep scan (${type}) starting…`);
+    try {
+      const start = await fetch("/api/job", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type, target: q }) });
+      const sd = await start.json();
+      if (!sd.configured) { setDeepStatus("deep scan needs the collector worker (COLLECTOR_URL)"); return; }
+      if (!sd.jobId) { setDeepStatus("could not start deep scan"); return; }
+      for (let i = 0; i < 80; i++) {
+        await new Promise((r) => setTimeout(r, 4000));
+        const pr = await fetch(`/api/job?id=${encodeURIComponent(sd.jobId)}&target=${encodeURIComponent(q)}`);
+        const pd = await pr.json();
+        if (pd.status === "done") {
+          if (pd.signals?.length) { mergeRef.current(pd.signals, "deep:" + normId(q), normId(q)); setDeepStatus(`deep scan done · +${pd.signals.length} (${pd.elapsed}s)`); }
+          else setDeepStatus(`deep scan done · nothing new (${pd.elapsed}s)`);
+          break;
+        }
+        if (pd.status === "error" || pd.status === "not_found") { setDeepStatus("deep scan failed"); break; }
+        setDeepStatus(`deep scan (${type}) running… ${Math.round(pd.elapsed || i * 4)}s`);
+      }
+    } catch {
+      setDeepStatus("deep scan error");
+    } finally {
+      deepRef.current = false;
+      setTimeout(() => setDeepStatus(null), 6000);
+    }
+  }
+
   async function synthesizeDossier() {
     if (llmBusy) return;
     setLlmBusy(true); setNarrative(null); setVerification(null);
@@ -668,11 +704,13 @@ export default function OrbitBoard() {
         </div>
         <div className="flex" />
         <div className="readout">
+          {deepStatus && <span style={{ color: "var(--accent)" }}>{deepStatus}</span>}
           {scanMsg && <span style={{ color: "var(--accent)" }}>{scanMsg}</span>}
           <span className="hide-sm"><span className="dotpulse" /><b>{total}</b> signals</span>
           <span><b style={{ color: "var(--confirm)" }}>{confirmedCount}</b> confirmed</span>
           <button className="btn" onClick={runScan} disabled={scanning}>{scanning ? "…" : "↻ SCAN"}</button>
           <button className="btn btn-primary" onClick={investigate} disabled={scanning}>⚡ INVESTIGATE</button>
+          <button className="btn" onClick={deepScan}>⛏ DEEP</button>
           <button className="btn" onClick={openDossier}>▤ DOSSIER</button>
           <button className="btn" onClick={saveCurrent}>SAVE</button>
           <button className="btn" onClick={exportCurrent}>EXPORT</button>

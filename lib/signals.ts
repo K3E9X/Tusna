@@ -40,13 +40,15 @@ export interface Signal {
   /** entity-resolution cluster this node belongs to (accounts of one identity) */
   clusterId?: string;
   clusterTier?: "verified" | "probable" | "possible";
+  /** ISO date the account/footprint appeared (for the timeline), when known */
+  createdAt?: string;
 }
 
 export const SEED = "j0hn_doe";
 
 export const SIGNALS: Signal[] = [
   {
-    id: "x", platform: "X / TWITTER", handle: "@j0hn_doe", disc: "X", confidence: 96, status: "confirmed",
+    id: "x", platform: "X / TWITTER", handle: "@j0hn_doe", disc: "X", confidence: 96, status: "confirmed", createdAt: "2013-04-11",
     linkedIds: ["gh"],
     evidence: [
       { name: "Matching avatar", detail: "Perceptual hash of the portrait — near-exact collision.", source: "pHash · computed locally", weight: 98 },
@@ -55,7 +57,7 @@ export const SIGNALS: Signal[] = [
     ],
   },
   {
-    id: "gh", platform: "GITHUB", handle: "j0hndoe", disc: "GH", confidence: 92, status: "confirmed",
+    id: "gh", platform: "GITHUB", handle: "j0hndoe", disc: "GH", confidence: 92, status: "confirmed", createdAt: "2015-09-02",
     evidence: [
       { name: "Commit email", detail: "j***@proton.me reused across 3 linked accounts.", source: "observed · git metadata", weight: 93 },
       { name: "Matching avatar", detail: "pHash 97% with the X portrait.", source: "pHash", weight: 97 },
@@ -80,7 +82,7 @@ export const SIGNALS: Signal[] = [
     ],
   },
   {
-    id: "rd", platform: "REDDIT", handle: "u/john_doe_", disc: "RD", confidence: 74, status: "review",
+    id: "rd", platform: "REDDIT", handle: "u/john_doe_", disc: "RD", confidence: 74, status: "review", createdAt: "2018-06-20",
     evidence: [
       { name: "Fuzzy username", detail: "john_doe_ · distance 0.82.", source: "deterministic", weight: 72 },
       { name: "Writing style", detail: "Recurring phrasings (signal, not proof).", source: "stylometry · weak signal", weight: 60 },

@@ -41,7 +41,7 @@ export default function OrbitBoard() {
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [dossier, setDossier] = useState<Dossier | null>(null);
-  const [view, setView] = useState<"board" | "table">("board");
+  const [view, setView] = useState<"board" | "table" | "timeline">("board");
   const [tableSort, setTableSort] = useState<{ key: string; dir: 1 | -1 }>({ key: "tier", dir: 1 });
   const [tableFilter, setTableFilter] = useState("");
   const [narrative, setNarrative] = useState<string | null>(null);
@@ -615,6 +615,41 @@ export default function OrbitBoard() {
         );
       })()}
 
+      {view === "timeline" && (() => {
+        const all = currentSignals();
+        const dated = all
+          .filter((s) => s.createdAt && /\d{4}/.test(s.createdAt))
+          .map((s) => ({ s, d: s.createdAt!.slice(0, 10), y: s.createdAt!.slice(0, 4), tier: s.tier || scoreEvidence(s.evidence).tier }))
+          .sort((a, b) => a.d.localeCompare(b.d));
+        const years: { y: string; rows: typeof dated }[] = [];
+        for (const r of dated) { const g = years.find((x) => x.y === r.y); if (g) g.rows.push(r); else years.push({ y: r.y, rows: [r] }); }
+        return (
+          <div className="tablewrap">
+            <div className="table-toolbar"><span className="table-count">{dated.length} dated events · {all.length - dated.length} undated</span></div>
+            <div className="table-scroll">
+              {dated.length === 0 && <div className="t-empty" style={{ padding: 40, textAlign: "center" }}>no dated footprint yet — scan accounts that expose a creation date (GitHub, Reddit, HN…)</div>}
+              <div className="timeline">
+                {years.map((g) => (
+                  <div className="tl-year" key={g.y}>
+                    <div className="tl-y">{g.y}</div>
+                    <div className="tl-rows">
+                      {g.rows.map((r, i) => (
+                        <div className="tl-row" key={i} onClick={() => setSelectedId(r.s.id)}>
+                          <span className="tl-date">{r.d}</span>
+                          <span className={"da-tier t-" + r.tier}>{r.tier}</span>
+                          <span className="tl-plat">{r.s.platform}</span>
+                          <span className="tl-handle">{r.s.handle}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="chrome">
         <div className="wordmark">TUSNA <small>ORBIT</small></div>
         <label className="seed-in">
@@ -629,6 +664,7 @@ export default function OrbitBoard() {
         <div className="viewtoggle">
           <button className={view === "board" ? "on" : ""} onClick={() => setView("board")}>ORBIT</button>
           <button className={view === "table" ? "on" : ""} onClick={() => setView("table")}>TABLE</button>
+          <button className={view === "timeline" ? "on" : ""} onClick={() => setView("timeline")}>TIMELINE</button>
         </div>
         <div className="flex" />
         <div className="readout">

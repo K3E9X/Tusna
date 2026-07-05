@@ -175,6 +175,7 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
       disc: p.disc,
       url: p.url || undefined,
       displayName: p.displayName || undefined,
+      createdAt: p.createdAt || undefined,
       tier,
       confidence,
       status,

@@ -52,6 +52,7 @@ function build(term: string, data: any): Signal[] {
     tier: "probable",
     confidence: 70,
     status: "review",
+    createdAt: s0.date_compromised ? String(s0.date_compromised).slice(0, 10) : undefined,
     evidence: [
       { name: "Infostealer compromise", detail: `${term} appears in ${stealers.length} infostealer log(s) (Hudson Rock).`, source: "hudsonrock · cavalier", weight: 80 },
       ...(s0.date_compromised ? [{ name: "Compromise date", detail: String(s0.date_compromised).slice(0, 10), source: "hudsonrock", weight: 55 }] : []),

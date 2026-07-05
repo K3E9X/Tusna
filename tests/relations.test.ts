@@ -1,12 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { githubNetwork } from "../lib/relations.ts";
+import { githubNetwork, blueskyNetwork, mastodonNetwork } from "../lib/relations.ts";
 
-test("githubNetwork degrades gracefully offline (no throw, empty result)", async () => {
-  // sandbox blocks the network → every fetch fails → we must get a clean empty shape
-  const r = await githubNetwork("someuser", "github", new Date(0).toISOString());
-  assert.ok(Array.isArray(r.nodes));
-  assert.ok(Array.isArray(r.relations));
-  assert.ok(Array.isArray(r.activityTimestamps));
-  assert.ok(Array.isArray(r.repos));
+const shape = (r: any) => Array.isArray(r.nodes) && Array.isArray(r.relations)
+  && Array.isArray(r.activityTimestamps) && Array.isArray(r.repos);
+
+test("githubNetwork degrades gracefully (no throw, valid shape)", async () => {
+  assert.ok(shape(await githubNetwork("someuser", "github", new Date(0).toISOString())));
+});
+test("blueskyNetwork degrades gracefully", async () => {
+  assert.ok(shape(await blueskyNetwork("someone.bsky.social", new Date(0).toISOString())));
+});
+test("mastodonNetwork degrades gracefully", async () => {
+  assert.ok(shape(await mastodonNetwork("@someone", new Date(0).toISOString())));
 });

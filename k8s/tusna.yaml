@@ -1,0 +1,121 @@
+# Tusna on Kubernetes — app + deep-scan collector.
+#
+# Build & push the images first (any registry), then apply:
+#   docker build -t <registry>/tusna:latest . && docker push <registry>/tusna:latest
+#   docker build -t <registry>/tusna-collector:latest ./collector && docker push <registry>/tusna-collector:latest
+#   # edit the image: fields below to your registry, then:
+#   kubectl apply -f k8s/tusna.yaml
+#
+# Everything optional lives in the Secret — leave a value empty to keep that feature off.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tusna
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tusna-secrets
+  namespace: tusna
+type: Opaque
+stringData:
+  # all optional — the app degrades gracefully when any of these is empty
+  COLLECTOR_TOKEN: ""
+  POSTGRES_URL: ""            # e.g. postgres://user:pass@host:5432/tusna
+  INTELX_API_KEY: ""
+  RECORDED_FUTURE_API_KEY: "" # optional enterprise bonus source
+  LLM_API_URL: ""
+  LLM_MODEL: ""
+  LLM_API_KEY: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tusna-app
+  namespace: tusna
+  labels: { app: tusna-app }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: tusna-app }
+  template:
+    metadata:
+      labels: { app: tusna-app }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/k3e9x/tusna:latest   # ← change to your registry
+          ports:
+            - containerPort: 3000
+          env:
+            - name: COLLECTOR_URL
+              value: "http://tusna-collector:8000"
+          envFrom:
+            - secretRef: { name: tusna-secrets }
+          readinessProbe:
+            httpGet: { path: /, port: 3000 }
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /, port: 3000 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "192Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tusna-app
+  namespace: tusna
+spec:
+  selector: { app: tusna-app }
+  ports:
+    - port: 80
+      targetPort: 3000
+  type: LoadBalancer   # or ClusterIP + an Ingress of your choice
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tusna-collector
+  namespace: tusna
+  labels: { app: tusna-collector }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: tusna-collector }
+  template:
+    metadata:
+      labels: { app: tusna-collector }
+    spec:
+      containers:
+        - name: collector
+          image: ghcr.io/k3e9x/tusna-collector:latest   # ← change to your registry
+          ports:
+            - containerPort: 8000
+          env:
+            - name: COLLECTOR_TOKEN
+              valueFrom:
+                secretKeyRef: { name: tusna-secrets, key: COLLECTOR_TOKEN }
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "200m", memory: "256Mi" }
+            limits: { cpu: "2", memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tusna-collector
+  namespace: tusna
+spec:
+  selector: { app: tusna-collector }
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP   # internal only — reached by the app over the cluster network

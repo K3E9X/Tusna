@@ -13,15 +13,42 @@ The signature view is **Orbit**: identity correlation shown as a **gravitational
 
 ```bash
 npm install
-npm run dev
-# http://localhost:3000
+npm run dev            # http://localhost:3000
+npm test               # unit tests (node:test over the lib layer)
+npm run build && npm start   # production build
 ```
 
-Production build:
+Works on **Windows and Linux** identically (pure Node.js; no native build step).
+
+## Run it yourself — Docker / Kubernetes (self-host anywhere)
+
+Tusna is not tied to Vercel. It ships a standalone Docker image and a full local
+stack. Every external dependency is optional — remove one and the app keeps running,
+degrading cleanly.
+
+**Single container:**
 
 ```bash
-npm run build && npm start
+docker build -t tusna .
+docker run -p 3000:3000 tusna          # http://localhost:3000
 ```
+
+**Full stack (app + deep-scan collector, one command)** — identical on Windows
+(Docker Desktop / WSL2) and Linux:
+
+```bash
+docker compose up --build              # app + Maigret/Holehe/SpiderFoot collector
+docker compose --profile db up --build # + a local Postgres for durable cases
+```
+
+**Kubernetes** (any cluster — EKS/GKE/AKS/k3s/minikube):
+
+```bash
+# build & push both images to your registry, edit the image: fields in k8s/tusna.yaml
+kubectl apply -f k8s/tusna.yaml        # namespace, app (x2), collector, secrets
+```
+
+All configuration is env vars (see [`.env.example`](.env.example)); all are optional.
 
 ## Deploy on Vercel (free)
 

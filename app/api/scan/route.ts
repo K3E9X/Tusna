@@ -7,12 +7,13 @@ import { metaFromBuffer, metaEvidence } from "@/lib/metadata";
 import { extractFromText, normId } from "@/lib/extract";
 import { collect, holeheAccounts, collectorEnabled } from "@/lib/collector";
 import { searchIntelX, intelxEnabled } from "@/lib/intelx";
+import { recordedFutureLookup, recordedFutureEnabled } from "@/lib/recordedfuture";
 import { hudsonRockEmail, hudsonRockUsername } from "@/lib/hudsonrock";
 import { looksLikePhone, phoneIntel, type PhoneIntel } from "@/lib/phone";
 import { looksLikeName, nameSignals } from "@/lib/name";
 import { scoreEvidence } from "@/lib/scoring";
 import { resolveIdentities, type ResolveNode } from "@/lib/resolve";
-import { githubNetwork } from "@/lib/relations";
+import { githubNetwork, blueskyNetwork, mastodonNetwork, type NetworkResult } from "@/lib/relations";
 import { inferTimezone } from "@/lib/temporal";
 import { reverseGeocode, forwardGeocode, parseCoords, convergeLocations, type GeoPoint } from "@/lib/geo";
 import type { Signal, Evidence, Status } from "@/lib/signals";
@@ -393,6 +394,13 @@ export async function GET(req: NextRequest) {
       signals.push(...hr);
     }
 
+    // OPTIONAL bonus: Recorded Future (enterprise) — only if a key is configured.
+    // Never a base source; absent key → silently skipped, nothing breaks.
+    if (recordedFutureEnabled && (!enabled || enabled.has("recordedfuture"))) {
+      const rf = await recordedFutureLookup(isEmail ? q : matchTarget, isEmail);
+      signals.push(...rf);
+    }
+
     // email → registered accounts on mainstream sites (holehe, via the worker)
     if (isEmail && collectorEnabled && (!enabled || enabled.has("holehe"))) {
       const acc = await holeheAccounts(q);
@@ -406,30 +414,41 @@ export async function GET(req: NextRequest) {
       if (set?.size) s.linkedIds = [...set];
     }
 
-    // --- relationship graph + temporal analysis (GitHub public API) ---
-    // Map the person's world (followers/following/orgs) and infer their timezone
-    // from WHEN they are active. Both come from one event-feed fetch.
-    const ghSig = signals.find((s) => s.id === "github");
-    if (networkOn && ghSig) {
-      const net = await githubNetwork(ghSig.handle, ghSig.id, collectedAt);
-      if (net.nodes.length) {
-        const have = new Set(signals.map((s) => s.id));
-        for (const n of net.nodes) if (!have.has(n.id)) { signals.push(n); have.add(n.id); }
-        ghSig.relations = [...(ghSig.relations || []), ...net.relations];
-        ghSig.evidence.push({
-          name: "Network mapped",
-          detail: `${net.relations.length} relation(s): follows / followers / org membership.`,
-          source: "api.github.com · public API", weight: 40,
-        });
-      }
-      const tz = inferTimezone(net.activityTimestamps);
-      if (tz && tz.confidence >= 0.25) {
-        ghSig.evidence.push({
-          name: "Activity timezone",
-          detail: `Public activity peaks consistent with ${tz.label} (from ${tz.samples} events, confidence ${(tz.confidence * 100).toFixed(0)}%).`,
-          source: "temporal analysis · deterministic", weight: Math.round(40 + tz.confidence * 25),
-        });
-      }
+    // --- relationship graph + temporal analysis (multi-platform, keyless) ---
+    // Map the person's world (followers / following / orgs) and infer their timezone
+    // from WHEN they post. NOT GitHub-only: any account whose platform exposes a
+    // public social graph feeds the network. Each fetcher degrades gracefully.
+    if (networkOn) {
+      const fetchers: { sig: Signal; run: () => Promise<NetworkResult>; src: string }[] = [];
+      const gh = signals.find((s) => s.id === "github");
+      const bs = signals.find((s) => s.id === "bluesky");
+      const ma = signals.find((s) => s.id === "mastodon");
+      if (gh) fetchers.push({ sig: gh, src: "GitHub", run: () => githubNetwork(gh.handle, gh.id, collectedAt) });
+      if (bs) fetchers.push({ sig: bs, src: "Bluesky", run: () => blueskyNetwork(bs.handle, collectedAt) });
+      if (ma) fetchers.push({ sig: ma, src: "Mastodon", run: () => mastodonNetwork(ma.handle, collectedAt) });
+
+      const results = await Promise.all(fetchers.map((f) => f.run().catch((): NetworkResult => ({ nodes: [], relations: [], activityTimestamps: [], repos: [] }))));
+      const have = new Set(signals.map((s) => s.id));
+      results.forEach((net, i) => {
+        const { sig, src } = fetchers[i];
+        if (net.nodes.length) {
+          for (const n of net.nodes) if (!have.has(n.id)) { signals.push(n); have.add(n.id); }
+          sig.relations = [...(sig.relations || []), ...net.relations];
+          sig.evidence.push({
+            name: "Network mapped",
+            detail: `${net.relations.length} relation(s) via ${src}: follows / followers${src === "GitHub" ? " / org membership" : ""}.`,
+            source: `${src} · public API`, weight: 40,
+          });
+        }
+        const tz = inferTimezone(net.activityTimestamps);
+        if (tz && tz.confidence >= 0.25) {
+          sig.evidence.push({
+            name: "Activity timezone",
+            detail: `Public activity peaks consistent with ${tz.label} (from ${tz.samples} events on ${src}, confidence ${(tz.confidence * 100).toFixed(0)}%).`,
+            source: "temporal analysis · deterministic", weight: Math.round(40 + tz.confidence * 25),
+          });
+        }
+      });
     }
 
     // --- geospatial resolution + convergence ---

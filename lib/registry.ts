@@ -39,6 +39,7 @@ export const BUILTIN_APPS: AppDef[] = [
   { id: "holehe", name: "Holehe (email)", category: "Coverage", kind: "builtin", input: "email", status: "free", desc: "Email → accounts on 120+ mainstream sites (Insta, Spotify…), no alert. Needs the collector worker." },
   { id: "hudsonrock", name: "Hudson Rock", category: "Leaks", kind: "builtin", input: "both", status: "free", desc: "Infostealer intel (free): is the email/username compromised + which services it logged into. Defensive." },
   { id: "intelx", name: "Intelligence X", category: "Leaks", kind: "builtin", input: "both", status: "freemium", desc: "Breaches / pastes / darkweb. Needs INTELX_API_KEY. Sensitive — legal basis required." },
+  { id: "recordedfuture", name: "Recorded Future", category: "Leaks", kind: "builtin", input: "both", status: "paid", desc: "BONUS (enterprise): credential exposure + risk. Off unless RECORDED_FUTURE_API_KEY is set — never a base source. Legal basis required." },
   { id: "phash", name: "Avatar pHash", category: "Correlation", kind: "builtin", input: "image", status: "free", desc: "Links accounts by matching profile photos." },
   { id: "network", name: "Network graph", category: "Correlation", kind: "builtin", input: "username", status: "free", desc: "GitHub followers / following / orgs → related people + activity-based timezone." },
   { id: "geo", name: "Geo resolve", category: "Correlation", kind: "builtin", input: "both", status: "free", desc: "Geocode locations (Nominatim) + reward locations several sources agree on. Powers the map." },

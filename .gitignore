@@ -29,3 +29,6 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# session scratchpad (ephemeral test artifacts, venv)
+scratchpad/

@@ -12,6 +12,7 @@ import type { Verification } from "@/lib/verify";
 import { scoreEvidence, TIER_LABEL } from "@/lib/scoring";
 import { reverseImageLinks } from "@/lib/reverseimage";
 import { diffSnapshots, type MonitorDiff } from "@/lib/monitor";
+import { loadDecisions, saveDecision, applyDecisions } from "@/lib/decisions";
 
 // Leaflet touches window on import — load the map only in the browser.
 const MapView = dynamic(() => import("./MapView"), { ssr: false });
@@ -188,6 +189,42 @@ export default function OrbitBoard() {
   }
 
   function flashMsg(m: string) { setScanMsg(m); setTimeout(() => setScanMsg(null), 3000); }
+
+  // Face recognition: match the SAME PERSON across DIFFERENT photos (not just the same
+  // file). Runs in the browser via a face-embedding model; adds "Matching face" links.
+  const [faceBusy, setFaceBusy] = useState(false);
+  async function faceMatch() {
+    if (faceBusy) return;
+    const items = currentSignals().filter((s) => s.avatarUrl).map((s) => ({ id: s.id, url: s.avatarUrl! }));
+    if (items.length < 2) { flashMsg("need ≥2 nodes with a photo for face matching"); return; }
+    setFaceBusy(true); setScanMsg("loading face model…");
+    try {
+      const { ensureFaceModels, matchFaces } = await import("@/lib/face");
+      const ok = await ensureFaceModels();
+      if (!ok) { setScanMsg("face model missing — run: npm run fetch-face-models"); return; }
+      const { matches, described, scanned } = await matchFaces(items, (d, t) => setScanMsg(`analysing faces ${d}/${t}…`));
+      let applied = 0;
+      for (const m of matches) {
+        const A = nodesRef.current.find((n) => n.id === m.a);
+        const B = nodesRef.current.find((n) => n.id === m.b);
+        if (!A || !B) continue;
+        const detail = `Same face as ${B.platform} / ${A.platform} (descriptor distance ${m.distance.toFixed(2)}).`;
+        const ev = { name: m.strong ? "Matching face" : "Near-match face", detail, source: "face recognition · local model", weight: m.strong ? 90 : 74 };
+        A.evidence = [...A.evidence, ev]; B.evidence = [...B.evidence, { ...ev, detail: `Same face as ${A.platform} / ${B.platform} (descriptor distance ${m.distance.toFixed(2)}).` }];
+        A.linkedIds = [...new Set([...(A.linkedIds || []), B.id])];
+        B.linkedIds = [...new Set([...(B.linkedIds || []), A.id])];
+        for (const N of [A, B]) { const r = scoreEvidence(N.evidence); N.tier = r.tier; N.confidence = r.confidence; }
+        applied++;
+      }
+      setDataVersion((v) => v + 1);
+      setScanMsg(`${applied} same-face link(s) · ${described}/${scanned} faces read`);
+    } catch {
+      setScanMsg("face matching failed");
+    } finally {
+      setFaceBusy(false);
+      setTimeout(() => setScanMsg(null), 6000);
+    }
+  }
 
   // On-demand image forensics: extract the maximum metadata (EXIF/GPS/camera/date) from
   // any image URL. If GPS is embedded, drop a precise location node onto the board.
@@ -536,6 +573,9 @@ export default function OrbitBoard() {
     if (!n) return;
     n.status = status;
     setDataVersion((v) => v + 1);
+    // feedback loop: remember this judgment for the current seed so re-scans respect it
+    const seed = seedRef.current.trim();
+    if (seed) saveDecision(seed, id, status).catch(() => {});
   }
 
   async function runScan() {
@@ -548,8 +588,11 @@ export default function OrbitBoard() {
       const data = await res.json();
       if (!res.ok) { setScanMsg(data?.error || "scan failed"); return; }
       if (!data.signals?.length) { setScanMsg("no public presence found"); return; }
+      // feedback loop: re-apply the analyst's prior confirm/reject decisions
+      let restored = 0;
+      try { restored = applyDecisions(data.signals, await loadDecisions(u)); } catch { /* none */ }
       rebuildRef.current(data.signals, true);
-      setScanMsg(`${data.signals.length} real presence(s)`);
+      setScanMsg(`${data.signals.length} real presence(s)` + (restored ? ` · ${restored} prior decision(s) restored` : ""));
     } catch {
       setScanMsg("network unavailable");
     } finally {
@@ -574,6 +617,7 @@ export default function OrbitBoard() {
       const res = await fetch(`/api/scan?username=${encodeURIComponent(u)}&connectors=${encodeURIComponent(cids)}`);
       const data = await res.json();
       if (!res.ok || !data.signals) { setScanMsg("monitor scan failed"); return; }
+      try { applyDecisions(data.signals as Signal[], await loadDecisions(u)); } catch { /* none */ }
       const diff = diffSnapshots(before, data.signals as Signal[]);
       setMonitor(diff);
       rebuildRef.current(data.signals, false); // adopt the fresh state as current
@@ -855,6 +899,7 @@ export default function OrbitBoard() {
           <button className="btn" onClick={deepScan}>⛏ DEEP</button>
           <button className="btn" onClick={openDossier}>▤ DOSSIER</button>
           <button className="btn" onClick={imageForensics}>⌖ IMG</button>
+          <button className="btn" onClick={faceMatch} disabled={faceBusy}>◉ FACES</button>
           <button className="btn" onClick={runMonitor} disabled={monitoring}>◔ MONITOR</button>
           <button className="btn" onClick={saveCurrent}>SAVE</button>
           <button className="btn" onClick={exportCurrent}>EXPORT</button>

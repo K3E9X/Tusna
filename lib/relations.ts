@@ -41,6 +41,10 @@ export interface NetworkResult {
   activityTimestamps: string[];
   /** repos the person pushed to recently (content / interests) */
   repos: string[];
+  /** raw text of recent posts / commit messages → content mining */
+  postTexts: string[];
+  /** the handles of the follows/followers found, for mutual-connection analysis */
+  connectionHandles: string[];
 }
 
 interface PlatformCfg { key: string; label: string; source: string; }
@@ -117,16 +121,27 @@ export async function githubNetwork(
 
   const activityTimestamps: string[] = [];
   const repos = new Set<string>();
+  const postTexts: string[] = [];
   if (Array.isArray(events)) for (const e of events) {
     if (e?.created_at) activityTimestamps.push(e.created_at);
     if (e?.repo?.name) repos.add(e.repo.name);
+    // content: commit messages, issue/PR titles, comment bodies
+    const cs = e?.payload?.commits;
+    if (Array.isArray(cs)) for (const c of cs) if (c?.message) postTexts.push(String(c.message));
+    if (e?.payload?.issue?.title) postTexts.push(String(e.payload.issue.title));
+    if (e?.payload?.pull_request?.title) postTexts.push(String(e.payload.pull_request.title));
+    if (e?.payload?.comment?.body) postTexts.push(String(e.payload.comment.body));
   }
+  const connectionHandles = [
+    ...(Array.isArray(following) ? following : []),
+    ...(Array.isArray(followers) ? followers : []),
+  ].map((u: any) => u?.login).filter(Boolean).map((h: string) => h.toLowerCase());
 
   // stamp the seed→node edges onto no particular node here; the caller attaches
   // `relations` to the seed node (seedNodeId) so the graph can draw them.
   void seedNodeId;
 
-  return { nodes: [...nodes.values()], relations, activityTimestamps, repos: [...repos].slice(0, 20) };
+  return { nodes: [...nodes.values()], relations, activityTimestamps, repos: [...repos].slice(0, 20), postTexts: postTexts.slice(0, 80), connectionHandles };
 }
 
 /** Small helper: build nodes + edges from a follows/followers/timestamps set. */
@@ -135,6 +150,7 @@ function assemble(
   following: { handle: string; url?: string }[],
   followers: { handle: string; url?: string }[],
   timestamps: string[],
+  postTexts: string[],
   collectedAt: string,
 ): NetworkResult {
   const nodes = new Map<string, Signal>();
@@ -146,7 +162,8 @@ function assemble(
   };
   for (const u of following) addRel(personNode(cfg, u.handle, u.url, "is followed by", collectedAt), "follows", `seed follows ${u.handle}`);
   for (const u of followers) addRel(personNode(cfg, u.handle, u.url, "follows", collectedAt), "follower", `${u.handle} follows seed`);
-  return { nodes: [...nodes.values()], relations, activityTimestamps: timestamps, repos: [] };
+  const connectionHandles = [...following, ...followers].map((u) => u.handle.replace(/^@/, "").toLowerCase());
+  return { nodes: [...nodes.values()], relations, activityTimestamps: timestamps, repos: [], postTexts: postTexts.slice(0, 80), connectionHandles };
 }
 
 /**
@@ -158,7 +175,7 @@ export async function blueskyNetwork(handle: string, collectedAt: string, opts: 
   const actor = handle.includes(".") ? handle : `${handle}.bsky.social`;
   const prof = await getJSON(`${BSKY}/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(actor)}`, "application/json");
   const did = prof?.did;
-  if (!did) return { nodes: [], relations: [], activityTimestamps: [], repos: [] };
+  if (!did) return { nodes: [], relations: [], activityTimestamps: [], repos: [], postTexts: [], connectionHandles: [] };
   const [follows, followers, feed] = await Promise.all([
     getJSON(`${BSKY}/xrpc/app.bsky.graph.getFollows?actor=${encodeURIComponent(did)}&limit=${max}`, "application/json"),
     getJSON(`${BSKY}/xrpc/app.bsky.graph.getFollowers?actor=${encodeURIComponent(did)}&limit=${max}`, "application/json"),
@@ -168,9 +185,10 @@ export async function blueskyNetwork(handle: string, collectedAt: string, opts: 
   const map = (arr: any, field: string) => (Array.isArray(arr?.[field]) ? arr[field] : [])
     .filter((x: any) => x?.handle).slice(0, max)
     .map((x: any) => ({ handle: x.handle, url: `https://bsky.app/profile/${x.handle}` }));
-  const ts = (Array.isArray(feed?.feed) ? feed.feed : [])
-    .map((it: any) => it?.post?.record?.createdAt || it?.post?.indexedAt).filter(Boolean);
-  return assemble(cfg, map(follows, "follows"), map(followers, "followers"), ts, collectedAt);
+  const feedItems = Array.isArray(feed?.feed) ? feed.feed : [];
+  const ts = feedItems.map((it: any) => it?.post?.record?.createdAt || it?.post?.indexedAt).filter(Boolean);
+  const texts = feedItems.map((it: any) => it?.post?.record?.text).filter(Boolean);
+  return assemble(cfg, map(follows, "follows"), map(followers, "followers"), ts, texts, collectedAt);
 }
 
 /**
@@ -182,7 +200,7 @@ export async function mastodonNetwork(acct: string, collectedAt: string, opts: {
   const clean = acct.replace(/^@/, "").split("@")[0];
   const lookup = await getJSON(`${MASTO}/api/v1/accounts/lookup?acct=${encodeURIComponent(clean)}`, "application/json");
   const id = lookup?.id;
-  if (!id) return { nodes: [], relations: [], activityTimestamps: [], repos: [] };
+  if (!id) return { nodes: [], relations: [], activityTimestamps: [], repos: [], postTexts: [], connectionHandles: [] };
   const [following, followers, statuses] = await Promise.all([
     getJSON(`${MASTO}/api/v1/accounts/${id}/following?limit=${max}`, "application/json"),
     getJSON(`${MASTO}/api/v1/accounts/${id}/followers?limit=${max}`, "application/json"),
@@ -192,6 +210,8 @@ export async function mastodonNetwork(acct: string, collectedAt: string, opts: {
   const map = (arr: any) => (Array.isArray(arr) ? arr : [])
     .filter((x: any) => x?.acct).slice(0, max)
     .map((x: any) => ({ handle: `@${x.acct}`, url: x.url }));
-  const ts = (Array.isArray(statuses) ? statuses : []).map((s: any) => s?.created_at).filter(Boolean);
-  return assemble(cfg, map(following), map(followers), ts, collectedAt);
+  const statusArr = Array.isArray(statuses) ? statuses : [];
+  const ts = statusArr.map((s: any) => s?.created_at).filter(Boolean);
+  const texts = statusArr.map((s: any) => (s?.content ? String(s.content).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "")).filter(Boolean);
+  return assemble(cfg, map(following), map(followers), ts, texts, collectedAt);
 }

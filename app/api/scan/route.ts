@@ -14,6 +14,8 @@ import { looksLikeName, nameSignals } from "@/lib/name";
 import { scoreEvidence } from "@/lib/scoring";
 import { resolveIdentities, type ResolveNode } from "@/lib/resolve";
 import { githubNetwork, blueskyNetwork, mastodonNetwork, type NetworkResult } from "@/lib/relations";
+import { mineContent } from "@/lib/content";
+import { analyzeNetwork } from "@/lib/netanalysis";
 import { inferTimezone } from "@/lib/temporal";
 import { reverseGeocode, forwardGeocode, parseCoords, convergeLocations, type GeoPoint } from "@/lib/geo";
 import type { Signal, Evidence, Status } from "@/lib/signals";
@@ -427,8 +429,10 @@ export async function GET(req: NextRequest) {
       if (bs) fetchers.push({ sig: bs, src: "Bluesky", run: () => blueskyNetwork(bs.handle, collectedAt) });
       if (ma) fetchers.push({ sig: ma, src: "Mastodon", run: () => mastodonNetwork(ma.handle, collectedAt) });
 
-      const results = await Promise.all(fetchers.map((f) => f.run().catch((): NetworkResult => ({ nodes: [], relations: [], activityTimestamps: [], repos: [] }))));
+      const empty = (): NetworkResult => ({ nodes: [], relations: [], activityTimestamps: [], repos: [], postTexts: [], connectionHandles: [] });
+      const results = await Promise.all(fetchers.map((f) => f.run().catch(empty)));
       const have = new Set(signals.map((s) => s.id));
+      const connSets: { sig: Signal; handles: Set<string> }[] = [];
       results.forEach((net, i) => {
         const { sig, src } = fetchers[i];
         if (net.nodes.length) {
@@ -440,6 +444,7 @@ export async function GET(req: NextRequest) {
             source: `${src} · public API`, weight: 40,
           });
         }
+        if (net.connectionHandles.length) connSets.push({ sig, handles: new Set(net.connectionHandles) });
         const tz = inferTimezone(net.activityTimestamps);
         if (tz && tz.confidence >= 0.25) {
           sig.evidence.push({
@@ -448,7 +453,69 @@ export async function GET(req: NextRequest) {
             source: "temporal analysis · deterministic", weight: Math.round(40 + tz.confidence * 25),
           });
         }
+
+        // --- content mining (#1): read WHAT they wrote, not just when ---
+        if (net.postTexts.length) {
+          const mined = mineContent(net.postTexts, sig.handle);
+          const sr = `content mining · ${src} posts`;
+          for (const mn of mined.mentions.slice(0, 8)) {
+            const id = "mention:" + normId(mn.handle);
+            if (!have.has(id)) {
+              have.add(id);
+              signals.push({
+                id, platform: `${src.toUpperCase()} · MENTION`, handle: "@" + mn.handle, disc: "@", kind: "person",
+                confidence: 42, tier: "possible", status: "candidate", collectedAt,
+                evidence: [{ name: "Mentioned in posts", detail: `@${mn.handle} mentioned ${mn.count}× by the seed on ${src}.`, source: sr, weight: 46 }],
+              });
+            }
+            sig.relations = [...(sig.relations || []), { to: id, kind: "mention", label: `mentions @${mn.handle} (${mn.count}×)`, source: sr }];
+          }
+          for (const em of mined.emails.slice(0, 4)) {
+            const id = "attr:email:" + normId(em);
+            if (!have.has(id)) { have.add(id); signals.push({ id, platform: "EMAIL", handle: em, disc: "EM", kind: "email", confidence: 56, tier: "possible", status: "review", collectedAt, evidence: [{ name: "Email in post", detail: `Found in ${src} post text.`, source: sr, weight: 60 }] }); }
+            sig.linkedIds = [...new Set([...(sig.linkedIds || []), id])];
+          }
+          for (const pl of mined.places) {
+            const id = "attr:location:" + normId(pl).slice(0, 40);
+            if (!have.has(id)) { have.add(id); signals.push({ id, platform: "LOCATION", handle: pl, disc: "GEO", kind: "location", confidence: 40, tier: "weak", status: "candidate", collectedAt, evidence: [{ name: "Self-reported location", detail: `"${pl}" — stated in ${src} post text (weak, self-reported).`, source: sr, weight: 42 }] }); }
+            sig.linkedIds = [...new Set([...(sig.linkedIds || []), id])];
+          }
+          for (const emp of mined.employers) {
+            const id = "attr:org:" + normId(emp).slice(0, 40);
+            if (!have.has(id)) { have.add(id); signals.push({ id, platform: "EMPLOYER", handle: emp, disc: "▣", kind: "org", confidence: 40, tier: "weak", status: "candidate", collectedAt, evidence: [{ name: "Self-reported employer", detail: `"${emp}" — stated in ${src} post text (weak, self-reported).`, source: sr, weight: 42 }] }); }
+            sig.linkedIds = [...new Set([...(sig.linkedIds || []), id])];
+          }
+        }
       });
+
+      // --- mutual-connection analysis (#2): who links the accounts together ---
+      if (connSets.length) {
+        for (const ev of analyzeNetwork(connSets)) {
+          if (ev.kind === "shared-connection") {
+            const id = "hub:" + normId(ev.handle);
+            if (!have.has(id)) {
+              have.add(id);
+              signals.push({
+                id, platform: "SHARED CONTACT", handle: "@" + ev.handle, disc: "◎", kind: "person",
+                confidence: 62, tier: "probable", status: "review", collectedAt,
+                evidence: [{ name: "Shared connection", detail: ev.detail, source: "network analysis · deterministic", weight: 74 }],
+              });
+            }
+            for (const s of ev.sigs) s.linkedIds = [...new Set([...(s.linkedIds || []), id])];
+          } else if (ev.kind === "audience-overlap") {
+            // two of the seed's accounts share an audience → strong same-person signal
+            for (const s of ev.sigs) {
+              s.evidence.push({ name: "Shared audience", detail: ev.detail, source: "network analysis · Jaccard overlap", weight: 84 });
+              const rescored = scoreEvidence(s.evidence); s.tier = rescored.tier; s.confidence = rescored.confidence;
+            }
+            if (ev.sigs.length === 2) {
+              const [a, b] = ev.sigs;
+              a.linkedIds = [...new Set([...(a.linkedIds || []), b.id])];
+              b.linkedIds = [...new Set([...(b.linkedIds || []), a.id])];
+            }
+          }
+        }
+      }
     }
 
     // --- geospatial resolution + convergence ---

@@ -45,6 +45,14 @@ export async function ensureSchema(): Promise<void> {
         signals   jsonb NOT NULL
       )`;
       await q`CREATE INDEX IF NOT EXISTS tusna_snap_case ON tusna_snapshots (case_id, taken_at DESC)`;
+      // analyst decisions (confirm/reject) per seed — the feedback loop
+      await q`CREATE TABLE IF NOT EXISTS tusna_decisions (
+        seed       text NOT NULL,
+        node_id    text NOT NULL,
+        status     text NOT NULL,
+        updated_at bigint NOT NULL,
+        PRIMARY KEY (seed, node_id)
+      )`;
     })();
   }
   await _ready;

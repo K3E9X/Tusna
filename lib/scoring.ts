@@ -9,7 +9,7 @@ export type Tier = "verified" | "probable" | "possible" | "weak";
 
 // hard = cryptographic / cross-verified / same-image ; weak = mere existence,
 // inference, or derivation ; everything else = soft (observed but not proof).
-const HARD_RE = /matching avatar|declared|pgp|fingerprint|cross-link|commit email|breach|leak/i;
+const HARD_RE = /matching avatar|matching face|declared|pgp|fingerprint|cross-link|commit email|breach|leak/i;
 const WEAK_RE = /presence detected|derived|near-match|account age|timezone|writing style|generated|candidate|partial|speculative|not a valid|name query|owner lookup|sensitive source|initials|age consistency/i;
 
 export function classify(name: string): EvidenceClass {

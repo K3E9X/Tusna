@@ -50,6 +50,10 @@ kubectl apply -f k8s/tusna.yaml        # namespace, app (x2), collector, secrets
 
 All configuration is env vars (see [`.env.example`](.env.example)); all are optional.
 
+**Face recognition (optional).** The `◉ FACES` button (match the same person across
+different photos) needs the model weights once — `npm run fetch-face-models` (~7 MB
+into `public/models`, not committed). Until then it degrades gracefully.
+
 ## Deploy on Vercel (free)
 
 Standard Next.js app, zero-config deploy.

@@ -7,12 +7,10 @@
 // doubt bias). See docs/llm-correlation.md for the full architecture.
 
 import type { Dossier } from "./dossier";
+import { resolveLLM, llmChat, type LLMConfig } from "./llmconfig";
 
-const URL = process.env.LLM_API_URL || "";
-const KEY = process.env.LLM_API_KEY || "";
-const MODEL = process.env.LLM_MODEL || "";
-
-export const llmEnabled = URL.length > 0 && MODEL.length > 0;
+/** True when the ENV LLM is configured (client-provided config is checked per request). */
+export const llmEnabled = resolveLLM().enabled;
 
 const SYSTEM = [
   "You are an OSINT analyst assistant. You summarize ONLY the evidence provided about a subject.",
@@ -24,35 +22,13 @@ const SYSTEM = [
   "Output: a 4-6 sentence intelligence brief, then a line 'Uncertainties:' followed by short bullets.",
 ].join("\n");
 
-export async function synthesize(dossier: Dossier, evidenceLines: string[]): Promise<string | null> {
-  if (!llmEnabled) return null;
+export async function synthesize(dossier: Dossier, evidenceLines: string[], override?: Partial<LLMConfig>): Promise<string | null> {
+  const cfg = resolveLLM(override);
+  if (!cfg.enabled) return null;
   const user =
     "SUBJECT DOSSIER (consolidated from verified nodes only):\n" +
     JSON.stringify(dossier, null, 1) +
     "\n\nRAW EVIDENCE (each line: [source] name: detail):\n" +
     evidenceLines.slice(0, 60).join("\n");
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 30000);
-    try {
-      const res = await fetch(URL.replace(/\/$/, "") + "/chat/completions", {
-        method: "POST",
-        signal: ctrl.signal,
-        headers: { "content-type": "application/json", ...(KEY ? { Authorization: "Bearer " + KEY } : {}) },
-        body: JSON.stringify({
-          model: MODEL,
-          temperature: 0.2,
-          max_tokens: 700,
-          messages: [{ role: "system", content: SYSTEM }, { role: "user", content: user }],
-        }),
-      });
-      if (!res.ok) return null;
-      const d = await res.json();
-      return d?.choices?.[0]?.message?.content?.trim() || null;
-    } finally {
-      clearTimeout(t);
-    }
-  } catch {
-    return null;
-  }
+  return llmChat(cfg, [{ role: "system", content: SYSTEM }, { role: "user", content: user }], { temperature: 0.2, maxTokens: 700 });
 }

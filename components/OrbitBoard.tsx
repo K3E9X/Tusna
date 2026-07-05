@@ -16,6 +16,9 @@ import { loadDecisions, saveDecision, applyDecisionsFiltered, suppressedIds } fr
 import { shouldWipeBeforeScan } from "@/lib/board";
 import { looksLikeName } from "@/lib/name";
 import { buildTimeline } from "@/lib/timeline";
+import { loadSettings, saveSettings, cfgHeaders, toClientConfig, type TusnaSettings } from "@/lib/settings";
+import { LLM_PRESETS } from "@/lib/llmconfig";
+import type { AssistResult } from "@/lib/assist";
 
 // Leaflet touches window on import — load the map only in the browser.
 const MapView = dynamic(() => import("./MapView"), { ssr: false });
@@ -58,6 +61,12 @@ export default function OrbitBoard() {
   const [monitoring, setMonitoring] = useState(false);
   const [barMenu, setBarMenu] = useState<"tools" | "data" | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [apiOpen, setApiOpen] = useState(false);
+  const [settings, setSettings] = useState<TusnaSettings>({});
+  const [pings, setPings] = useState<Record<string, { ok: boolean; detail: string } | "loading">>({});
+  const [assist, setAssist] = useState<AssistResult | null>(null);
+  const [assistBusy, setAssistBusy] = useState(false);
+  const [assistVerdict, setAssistVerdict] = useState<Verification | null>(null);
   const [isDemo, setIsDemo] = useState(true); // the board starts with demo data
   const demoRef = useRef(true);
   const lastScanRef = useRef<string>("");
@@ -110,7 +119,7 @@ export default function OrbitBoard() {
     setLlmBusy(true); setNarrative(null); setVerification(null);
     try {
       const res = await fetch("/api/synthesize", {
-        method: "POST", headers: { "content-type": "application/json" },
+        method: "POST", headers: { "content-type": "application/json", ...cfgHeaders() },
         body: JSON.stringify({ signals: currentSignals() }),
       });
       const data = await res.json();
@@ -129,7 +138,61 @@ export default function OrbitBoard() {
   const enabledRef = useRef(enabled);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { listCases().then(setCases).catch(() => {}); setEnabled(loadEnabled()); }, []);
+  useEffect(() => { listCases().then(setCases).catch(() => {}); setEnabled(loadEnabled()); setSettings(loadSettings()); }, []);
+
+  function updateSettings(patch: Partial<TusnaSettings>) {
+    setSettings((s) => { const n = { ...s, ...patch }; saveSettings(n); return n; });
+  }
+
+  async function ping(service: string) {
+    setPings((p) => ({ ...p, [service]: "loading" }));
+    try {
+      const res = await fetch("/api/ping", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ service, cfg: toClientConfig(settings) }) });
+      const d = await res.json();
+      setPings((p) => ({ ...p, [service]: { ok: !!d.ok, detail: String(d.detail || "") } }));
+    } catch {
+      setPings((p) => ({ ...p, [service]: { ok: false, detail: "network error" } }));
+    }
+  }
+
+  // LLM investigative assistant: reads the current graph, proposes a conclusion, the
+  // next pivots to chase, and suspected false positives. Grounded + verified.
+  async function runAssist() {
+    if (assistBusy) return;
+    const sigs = currentSignals();
+    if (!sigs.length) { flashMsg("scan something first, then ask the assistant"); return; }
+    setAssistBusy(true); setAssist(null); setAssistVerdict(null); setBarMenu(null);
+    try {
+      const res = await fetch("/api/assist", { method: "POST", headers: { "content-type": "application/json", ...cfgHeaders() }, body: JSON.stringify({ signals: sigs }) });
+      const d = await res.json();
+      if (!d.configured) { setAssist({ conclusion: "LLM not configured. Open API (top-right) and set a provider + key — free options: OpenRouter, z.ai, Qwen.", pivots: [], falsePositives: [], uncertainties: [], confidence: "low" }); return; }
+      if (d.error || !d.result) { flashMsg(d.error || "assistant failed"); return; }
+      setAssist(d.result); setAssistVerdict(d.verification || null);
+    } catch {
+      flashMsg("network unavailable");
+    } finally {
+      setAssistBusy(false);
+    }
+  }
+
+  // chase a pivot the assistant proposed: scan it and merge the leads onto the board
+  async function chasePivot(query: string) {
+    if (scanning) return;
+    setScanning(true); setScanMsg(`chasing ${query}…`);
+    try {
+      const cids = [...enabledRef.current].join(",");
+      const res = await fetch(`/api/scan?username=${encodeURIComponent(query)}&connectors=${encodeURIComponent(cids)}`, { headers: cfgHeaders() });
+      const data = await res.json().catch(() => null);
+      const added = data?.signals?.length ? mergeRef.current(data.signals, "assist:" + normId(query), normId(query)) : 0;
+      setScanMsg(added ? `+${added} from ${query}` : "nothing new");
+    } catch { setScanMsg("network unavailable"); } finally { setScanning(false); setTimeout(() => setScanMsg(null), 4000); }
+  }
+
+  // select a node the assistant flagged as a likely false positive, by its handle
+  function selectByHandle(h: string) {
+    const n = nodesRef.current.find((x) => x.handle.toLowerCase() === h.toLowerCase() || x.handle.replace(/^[@]|^u\//, "").toLowerCase() === h.replace(/^[@]/, "").toLowerCase());
+    if (n) setSelectedId(n.id); else flashMsg(`"${h}" not on the board`);
+  }
   useEffect(() => { enabledRef.current = enabled; }, [enabled]);
 
   function toggleApp(id: string) {
@@ -628,7 +691,7 @@ export default function OrbitBoard() {
       const cids = [...enabledRef.current].join(",");
       for (const { q } of pick) {
         chainedRef.current.add("h:" + normId(q)); chainedRef.current.add("n:" + normId(q)); chainedRef.current.add("x:" + normId(q));
-        const res = await fetch(`/api/scan?username=${encodeURIComponent(q)}&connectors=${encodeURIComponent(cids)}`);
+        const res = await fetch(`/api/scan?username=${encodeURIComponent(q)}&connectors=${encodeURIComponent(cids)}`, { headers: cfgHeaders() });
         const data = await res.json().catch(() => null);
         if (data?.signals?.length) added += mergeRef.current(data.signals, node.id, normId(q));
       }
@@ -656,7 +719,7 @@ export default function OrbitBoard() {
     setScanning(true); setScanMsg("scanning…");
     try {
       const cids = [...enabledRef.current].join(",");
-      const res = await fetch(`/api/scan?username=${encodeURIComponent(u)}&connectors=${encodeURIComponent(cids)}`);
+      const res = await fetch(`/api/scan?username=${encodeURIComponent(u)}&connectors=${encodeURIComponent(cids)}`, { headers: cfgHeaders() });
       const data = await res.json();
       if (!res.ok) { setScanMsg(data?.error || "scan failed"); return; }
       lastScanRef.current = u;
@@ -693,7 +756,7 @@ export default function OrbitBoard() {
     setMonitoring(true); setScanMsg("monitoring · re-scanning…");
     try {
       const cids = [...enabledRef.current].join(",");
-      const res = await fetch(`/api/scan?username=${encodeURIComponent(u)}&connectors=${encodeURIComponent(cids)}`);
+      const res = await fetch(`/api/scan?username=${encodeURIComponent(u)}&connectors=${encodeURIComponent(cids)}`, { headers: cfgHeaders() });
       const data = await res.json();
       if (!res.ok || !data.signals) { setScanMsg("monitor scan failed"); return; }
       let sigs = data.signals as Signal[];
@@ -735,7 +798,7 @@ export default function OrbitBoard() {
     setScanning(true); setScanMsg(`pivoting on ${q}…`);
     try {
       const cids = [...enabledRef.current].join(",");
-      const res = await fetch(`/api/scan?username=${encodeURIComponent(q)}&connectors=${encodeURIComponent(cids)}`);
+      const res = await fetch(`/api/scan?username=${encodeURIComponent(q)}&connectors=${encodeURIComponent(cids)}`, { headers: cfgHeaders() });
       const data = await res.json();
       if (!res.ok || !data.signals?.length) { setScanMsg("nothing new to pivot"); return; }
       mergeRef.current(data.signals, node.id, normId(q));
@@ -754,7 +817,7 @@ export default function OrbitBoard() {
     const visited = new Set<string>();
     const scanOne = async (q: string, originId: string): Promise<number> => {
       const cids = [...enabledRef.current].join(",");
-      const res = await fetch(`/api/scan?username=${encodeURIComponent(q)}&connectors=${encodeURIComponent(cids)}`);
+      const res = await fetch(`/api/scan?username=${encodeURIComponent(q)}&connectors=${encodeURIComponent(cids)}`, { headers: cfgHeaders() });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.signals?.length) return 0;
       return mergeRef.current(data.signals, originId, normId(q));
@@ -994,6 +1057,7 @@ export default function OrbitBoard() {
             <button className={"btn" + (barMenu === "tools" ? " open" : "")} onClick={() => setBarMenu((m) => (m === "tools" ? null : "tools"))}>TOOLS ▾</button>
             {barMenu === "tools" && (
               <div className="menu-pop">
+                <button className="menu-item" disabled={assistBusy} onClick={runAssist}><b>Ask the assistant</b><span>LLM reads the graph → conclusion, pivots, false positives</span></button>
                 <button className="menu-item" onClick={() => { setBarMenu(null); deepScan(); }}><b>Deep scan</b><span>3000+ sites via the collector worker</span></button>
                 <button className="menu-item" onClick={() => { setBarMenu(null); imageForensics(); }}><b>Image metadata</b><span>EXIF / GPS from a photo URL</span></button>
                 <button className="menu-item" disabled={faceBusy} onClick={() => { setBarMenu(null); faceMatch(); }}><b>Face match</b><span>Same person across different photos</span></button>
@@ -1072,6 +1136,7 @@ export default function OrbitBoard() {
               </div>
             )}
           </div>
+          <button className="btn" onClick={() => setApiOpen(true)}>API</button>
           <button className="btn" onClick={() => setGuideOpen(true)}>GUIDE</button>
           {barMenu && <div className="menu-backdrop" onClick={() => setBarMenu(null)} />}
         </div>
@@ -1086,6 +1151,101 @@ export default function OrbitBoard() {
           </div>
           <div className="hint">Enter a seed (username, email, phone or name) and press INVESTIGATE&nbsp;&nbsp;/&nbsp;&nbsp;click a node for its evidence&nbsp;&nbsp;/&nbsp;&nbsp;right-click to pivot&nbsp;&nbsp;/&nbsp;&nbsp;new here? open GUIDE</div>
         </>
+      )}
+
+      {apiOpen && (() => {
+        const PingDot = ({ svc }: { svc: string }) => {
+          const p = pings[svc];
+          return (
+            <span className="ping">
+              <button className="ping-btn" onClick={() => ping(svc)} disabled={p === "loading"}>{p === "loading" ? "testing…" : "Test"}</button>
+              {p && p !== "loading" && <span className={"ping-res " + (p.ok ? "ok" : "bad")}>{p.ok ? "● pong" : "● fail"} · {p.detail}</span>}
+            </span>
+          );
+        };
+        return (
+          <div className="add-overlay" onClick={() => setApiOpen(false)}>
+            <div className="apicard" onClick={(e) => e.stopPropagation()}>
+              <button className="insp-close" onClick={() => setApiOpen(false)} aria-label="close">✕</button>
+              <div className="insp-plat">API · keys &amp; connections</div>
+              <div className="add-sub">Keys are stored in your browser only and sent per request — never saved on the server. Each field has a live Test (ping/pong).</div>
+
+              <div className="guide-sect">Investigation assistant (LLM)</div>
+              <div className="api-sub">Free options: OpenRouter (many <b>:free</b> models), z.ai GLM-4-Flash, Qwen, or local Ollama. Pick a preset, paste your key, Test.</div>
+              <label className="add-field"><span>preset</span>
+                <select className="api-select" value="" onChange={(e) => { const pr = LLM_PRESETS.find((x) => x.id === e.target.value); if (pr) updateSettings({ llmUrl: pr.url, llmModel: pr.model, llmWeb: pr.web }); }}>
+                  <option value="">— choose a provider —</option>
+                  {LLM_PRESETS.map((pr) => <option key={pr.id} value={pr.id}>{pr.label}</option>)}
+                </select>
+              </label>
+              <div className="add-cols">
+                <label className="add-field"><span>base url</span><input value={settings.llmUrl || ""} placeholder="https://openrouter.ai/api/v1" onChange={(e) => updateSettings({ llmUrl: e.target.value })} /></label>
+                <label className="add-field"><span>model</span><input value={settings.llmModel || ""} placeholder="deepseek/deepseek-chat-v3.1:free" onChange={(e) => updateSettings({ llmModel: e.target.value })} /></label>
+              </div>
+              <label className="add-field"><span>api key</span><input type="password" value={settings.llmKey || ""} placeholder="sk-…" onChange={(e) => updateSettings({ llmKey: e.target.value })} /></label>
+              <label className="api-check"><input type="checkbox" checked={!!settings.llmWeb} onChange={(e) => updateSettings({ llmWeb: e.target.checked })} /> allow web search (OpenRouter <b>:online</b>) — lets the assistant look up what our connectors can&apos;t reach</label>
+              <PingDot svc="llm" />
+
+              <div className="guide-sect">Leak / breach sources</div>
+              <div className="add-cols">
+                <label className="add-field"><span>Intelligence X key</span><input type="password" value={settings.intelx || ""} placeholder="freemium key" onChange={(e) => updateSettings({ intelx: e.target.value })} /></label>
+                <div className="api-testcol"><PingDot svc="intelx" /></div>
+              </div>
+              <div className="add-cols">
+                <label className="add-field"><span>Recorded Future key</span><input type="password" value={settings.recordedfuture || ""} placeholder="enterprise (bonus)" onChange={(e) => updateSettings({ recordedfuture: e.target.value })} /></label>
+                <div className="api-testcol"><PingDot svc="recordedfuture" /></div>
+              </div>
+              <div className="api-free"><span>Hudson Rock (infostealer intel)</span> — free, no key. <PingDot svc="hudsonrock" /></div>
+
+              <div className="guide-sect">Deep-scan collector (Maigret / Holehe / SpiderFoot)</div>
+              <div className="add-cols">
+                <label className="add-field"><span>collector url</span><input value={settings.collectorUrl || ""} placeholder="https://…onrender.com" onChange={(e) => updateSettings({ collectorUrl: e.target.value })} /></label>
+                <label className="add-field"><span>token</span><input type="password" value={settings.collectorToken || ""} placeholder="optional" onChange={(e) => updateSettings({ collectorToken: e.target.value })} /></label>
+              </div>
+              <PingDot svc="collector" />
+              <div className="api-note">Note: the collector URL is read from the server env (COLLECTOR_URL) for scans; the Test here checks reachability of what you entered.</div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {assist && (
+        <div className="assist-panel">
+          <button className="insp-close" onClick={() => setAssist(null)} aria-label="close">✕</button>
+          <div className="mon-title">ASSISTANT · investigative read</div>
+          <div className={"assist-conf c-" + assist.confidence}>identification confidence: {assist.confidence}</div>
+          <div className="assist-concl">{assist.conclusion}</div>
+          {assistVerdict && (
+            <div className={"verify " + assistVerdict.verdict}>
+              {assistVerdict.verdict === "grounded"
+                ? <span>✓ grounded · {assistVerdict.validCitations}/{assistVerdict.totalCitations} citations valid</span>
+                : <span>⚠ {assistVerdict.validCitations}/{assistVerdict.totalCitations} citations valid{assistVerdict.unsupportedFacts.length ? ` · ${assistVerdict.unsupportedFacts.length} unsupported` : ""}</span>}
+            </div>
+          )}
+          {assist.pivots.length > 0 && <>
+            <div className="assist-sect">Next pivots to chase</div>
+            {assist.pivots.map((p, i) => (
+              <div className="assist-row" key={i}>
+                <button className="assist-act" disabled={scanning} onClick={() => chasePivot(p.query)}>chase</button>
+                <span className="assist-main"><b>{p.query}</b><span>{p.why}</span></span>
+              </div>
+            ))}
+          </>}
+          {assist.falsePositives.length > 0 && <>
+            <div className="assist-sect">Suspected false positives</div>
+            {assist.falsePositives.map((p, i) => (
+              <div className="assist-row" key={i}>
+                <button className="assist-act warn" onClick={() => selectByHandle(p.node)}>inspect</button>
+                <span className="assist-main"><b>{p.node}</b><span>{p.why}</span></span>
+              </div>
+            ))}
+          </>}
+          {assist.uncertainties.length > 0 && <>
+            <div className="assist-sect">Uncertainties</div>
+            <ul className="assist-unc">{assist.uncertainties.map((u, i) => <li key={i}>{u}</li>)}</ul>
+          </>}
+          <div className="assist-foot">The assistant proposes; you decide. Confirming a chased lead continues the chain; rejecting a false positive removes it for good.</div>
+        </div>
       )}
 
       {guideOpen && (
@@ -1120,6 +1280,14 @@ export default function OrbitBoard() {
               <li><b>TIMELINE</b> — footprint ordered by account-creation date.</li>
               <li><b>MAP</b> — every resolved location on a real map.</li>
             </ul>
+
+            <div className="guide-sect">Let the assistant help (TOOLS → Ask the assistant)</div>
+            <div className="guide-lead">
+              With an LLM configured (API panel — free options: OpenRouter, z.ai, Qwen), the assistant reads the
+              whole graph and returns a grounded read: a factual <b>conclusion</b>, the <b>next pivots</b> to chase
+              (click to run them), and <b>suspected false positives</b> to inspect. Every claim is cited and verified
+              against the evidence — it proposes, you decide. With web search on, it can look up what our connectors can&apos;t reach.
+            </div>
 
             <div className="guide-sect">Enrich (TOOLS menu)</div>
             <ul className="guide-list">

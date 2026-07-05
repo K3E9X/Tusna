@@ -13,16 +13,17 @@ import type { Signal } from "./signals";
 
 const normId = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
 
-const KEY = process.env.RECORDED_FUTURE_API_KEY || process.env.RF_API_KEY || "";
+const ENV_KEY = process.env.RECORDED_FUTURE_API_KEY || process.env.RF_API_KEY || "";
 // Connect API base (risk/SOAR) and Identity API base — override per your contract.
 const BASE = (process.env.RF_API_URL || "https://api.recordedfuture.com/v2").replace(/\/$/, "");
 const IDENTITY = (process.env.RF_IDENTITY_URL || "https://api.recordedfuture.com/identity").replace(/\/$/, "");
 const UA = "Tusna-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
 
-export const recordedFutureEnabled = KEY.length > 0;
+export const recordedFutureEnabled = ENV_KEY.length > 0;
+export const recordedFutureConfigured = (key?: string) => (key || ENV_KEY).length > 0;
 
-function rf(url: string, init: RequestInit = {}) {
-  return fetch(url, { ...init, headers: { ...(init.headers || {}), "X-RFToken": KEY, "User-Agent": UA }, cache: "no-store" });
+function rf(url: string, key: string, init: RequestInit = {}) {
+  return fetch(url, { ...init, headers: { ...(init.headers || {}), "X-RFToken": key, "User-Agent": UA }, cache: "no-store" });
 }
 
 async function withTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, ms = 12000): Promise<T | null> {
@@ -71,13 +72,14 @@ function riskNode(entity: string, kind: string, score: number, rules: string[]):
  * Optional enrichment. For an email → Identity credential-exposure lookup; for a
  * domain → Connect API risk. Returns [] when disabled, unlicensed, or offline.
  */
-export async function recordedFutureLookup(seed: string, isEmail: boolean): Promise<Signal[]> {
-  if (!recordedFutureEnabled || !seed) return [];
+export async function recordedFutureLookup(seed: string, isEmail: boolean, keyOverride?: string): Promise<Signal[]> {
+  const key = keyOverride || ENV_KEY;
+  if (!key || !seed) return [];
   const out: Signal[] = [];
 
   if (isEmail) {
     const data = await withTimeout((signal) =>
-      rf(`${IDENTITY}/credentials/lookup`, {
+      rf(`${IDENTITY}/credentials/lookup`, key, {
         method: "POST", signal,
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ subjects: [seed], subjects_type: "email" }),
@@ -96,7 +98,7 @@ export async function recordedFutureLookup(seed: string, isEmail: boolean): Prom
     const domain = /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(seed) ? seed : "";
     if (domain) {
       const data = await withTimeout((signal) =>
-        rf(`${BASE}/domain/${encodeURIComponent(domain)}?fields=risk`, { signal }).then((r) => (r.ok ? r.json() : null)),
+        rf(`${BASE}/domain/${encodeURIComponent(domain)}?fields=risk`, key, { signal }).then((r) => (r.ok ? r.json() : null)),
       );
       const risk = data?.data?.risk;
       if (risk && typeof risk.score === "number") {

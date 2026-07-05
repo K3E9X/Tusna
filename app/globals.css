@@ -405,3 +405,44 @@ body {
 .map-item-main span { font-size: 10px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .map-item-src { flex: none; font-size: 8.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
 @media (max-width: 720px) { .map-side { display: none; } }
+
+/* ---- API settings card ---- */
+.apicard { width: min(560px, 94vw); max-height: 90vh; overflow-y: auto; position: relative;
+  background: var(--panel); backdrop-filter: blur(16px); border: 1px solid var(--accent); border-radius: 6px; padding: 24px 26px; box-shadow: 0 24px 70px rgba(0,0,0,.55); }
+.api-sub { font-size: 10.5px; color: var(--ink-3); line-height: 1.6; margin: -2px 0 10px; }
+.api-sub b, .api-note b { color: var(--ink-2); }
+.api-select { width: 100%; background: var(--void-2); border: 1px solid var(--line); border-radius: 3px; color: var(--ink); font-family: var(--mono); font-size: 12px; padding: 8px 10px; outline: none; }
+.api-check { display: flex; align-items: flex-start; gap: 8px; font-size: 11px; color: var(--ink-2); line-height: 1.5; margin: 4px 0 10px; cursor: pointer; }
+.api-check input { margin-top: 2px; }
+.api-testcol { display: flex; align-items: flex-end; padding-bottom: 12px; }
+.api-free { font-size: 11px; color: var(--ink-2); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0; }
+.api-free span { color: var(--ink); }
+.api-note { font-size: 9.5px; color: var(--ink-4); line-height: 1.5; margin-top: 8px; }
+.ping { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.ping-btn { background: var(--accent-dim); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); color: var(--accent);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 5px 12px; border-radius: 3px; cursor: pointer; }
+.ping-btn:disabled { opacity: .5; cursor: default; }
+.ping-res { font-size: 10.5px; letter-spacing: .02em; }
+.ping-res.ok { color: var(--confirm); }
+.ping-res.bad { color: var(--reject); }
+
+/* ---- Assistant panel ---- */
+.assist-panel { position: fixed; right: 20px; top: 78px; width: 400px; max-height: 82vh; overflow-y: auto; z-index: 45;
+  background: var(--panel); backdrop-filter: blur(16px); border: 1px solid var(--accent); border-radius: 6px; padding: 16px 16px 14px; box-shadow: 0 24px 70px rgba(0,0,0,.5); }
+.assist-conf { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; margin: 6px 0 10px; padding: 3px 8px; border-radius: 10px; border: 1px solid; display: inline-block; }
+.assist-conf.c-high { color: var(--confirm); border-color: color-mix(in srgb, var(--confirm) 45%, transparent); }
+.assist-conf.c-medium { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.assist-conf.c-low { color: var(--ink-3); border-color: var(--line); }
+.assist-concl { font-size: 12.5px; line-height: 1.65; color: var(--ink); white-space: pre-wrap; }
+.assist-sect { font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin: 16px 0 6px; }
+.assist-row { display: flex; align-items: flex-start; gap: 9px; padding: 7px 0; border-top: 1px solid var(--line-soft); }
+.assist-act { flex: none; background: var(--accent-dim); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); color: var(--accent);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; padding: 5px 9px; border-radius: 3px; cursor: pointer; }
+.assist-act.warn { color: var(--reject); border-color: color-mix(in srgb, var(--reject) 40%, transparent); }
+.assist-act:disabled { opacity: .5; cursor: default; }
+.assist-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.assist-main b { font-size: 12px; color: var(--ink); font-weight: 400; word-break: break-all; }
+.assist-main span { font-size: 10.5px; color: var(--ink-3); line-height: 1.45; }
+.assist-unc { margin: 0; padding-left: 18px; }
+.assist-unc li { font-size: 11px; color: var(--ink-2); line-height: 1.5; }
+.assist-foot { font-size: 9.5px; color: var(--ink-4); line-height: 1.5; margin-top: 14px; border-top: 1px solid var(--line-soft); padding-top: 10px; }

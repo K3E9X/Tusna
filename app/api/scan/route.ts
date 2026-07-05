@@ -6,8 +6,9 @@ import { dHashFromBuffer, fetchImageBuffer, avatarMatch } from "@/lib/phash";
 import { metaFromBuffer, metaEvidence } from "@/lib/metadata";
 import { extractFromText, normId } from "@/lib/extract";
 import { collect, holeheAccounts, collectorEnabled } from "@/lib/collector";
-import { searchIntelX, intelxEnabled } from "@/lib/intelx";
-import { recordedFutureLookup, recordedFutureEnabled } from "@/lib/recordedfuture";
+import { searchIntelX, intelxConfigured } from "@/lib/intelx";
+import { recordedFutureLookup, recordedFutureConfigured } from "@/lib/recordedfuture";
+import { readClientConfig } from "@/lib/reqconfig";
 import { hudsonRockEmail, hudsonRockUsername } from "@/lib/hudsonrock";
 import { looksLikePhone, phoneIntel, type PhoneIntel } from "@/lib/phone";
 import { looksLikeName, nameSignals, nameCandidates } from "@/lib/name";
@@ -211,6 +212,7 @@ function correlate(matchTarget: string, profiles: RawProfile[]): Signal[] {
 }
 
 export async function GET(req: NextRequest) {
+  const clientCfg = readClientConfig(req); // keys from the API panel (override env)
   const q = (req.nextUrl.searchParams.get("username") || "").trim();
   const depth = clamp(parseInt(req.nextUrl.searchParams.get("depth") || "120", 10) || 120, 1, 300);
   if (!q || q.length > 128) {
@@ -420,9 +422,9 @@ export async function GET(req: NextRequest) {
       for (const sid of a.sources) addEdge(sid, a.id);
     }
 
-    // breach / leak search (Intelligence X) when a key is configured + app enabled
-    if (intelxEnabled && (!enabled || enabled.has("intelx"))) {
-      const leaks = await searchIntelX(isEmail ? q : matchTarget);
+    // breach / leak search (Intelligence X) when a key is configured (env or API panel)
+    if (intelxConfigured(clientCfg.intelx ? { key: clientCfg.intelx, url: clientCfg.intelxUrl } : undefined) && (!enabled || enabled.has("intelx"))) {
+      const leaks = await searchIntelX(isEmail ? q : matchTarget, { key: clientCfg.intelx, url: clientCfg.intelxUrl });
       signals.push(...leaks);
     }
 
@@ -434,8 +436,8 @@ export async function GET(req: NextRequest) {
 
     // OPTIONAL bonus: Recorded Future (enterprise) — only if a key is configured.
     // Never a base source; absent key → silently skipped, nothing breaks.
-    if (recordedFutureEnabled && (!enabled || enabled.has("recordedfuture"))) {
-      const rf = await recordedFutureLookup(isEmail ? q : matchTarget, isEmail);
+    if (recordedFutureConfigured(clientCfg.recordedfuture) && (!enabled || enabled.has("recordedfuture"))) {
+      const rf = await recordedFutureLookup(isEmail ? q : matchTarget, isEmail, clientCfg.recordedfuture);
       signals.push(...rf);
     }
 

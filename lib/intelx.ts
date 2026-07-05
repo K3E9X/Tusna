@@ -5,14 +5,17 @@
 import { normId } from "./extract";
 import type { Signal } from "./signals";
 
-const KEY = process.env.INTELX_API_KEY || "";
-const BASE = (process.env.INTELX_URL || "https://2.intelx.io").replace(/\/$/, "");
+const ENV_KEY = process.env.INTELX_API_KEY || "";
+const DEFAULT_BASE = (process.env.INTELX_URL || "https://2.intelx.io").replace(/\/$/, "");
 const UA = "Tusna-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
 
-export const intelxEnabled = KEY.length > 0;
+export interface IntelxCreds { key?: string; url?: string; }
+/** Enabled when a key is present in env OR supplied by the caller (API panel). */
+export const intelxEnabled = ENV_KEY.length > 0;
+export const intelxConfigured = (c?: IntelxCreds) => (c?.key || ENV_KEY).length > 0;
 
-function ix(path: string, init: RequestInit = {}) {
-  return fetch(BASE + path, { ...init, headers: { ...(init.headers || {}), "x-key": KEY, "User-Agent": UA }, cache: "no-store" });
+function ix(path: string, key: string, base: string, init: RequestInit = {}) {
+  return fetch(base + path, { ...init, headers: { ...(init.headers || {}), "x-key": key, "User-Agent": UA }, cache: "no-store" });
 }
 
 function toNode(rec: any): Signal {
@@ -35,13 +38,15 @@ function toNode(rec: any): Signal {
   };
 }
 
-export async function searchIntelX(term: string, max = 8): Promise<Signal[]> {
-  if (!intelxEnabled || !term) return [];
+export async function searchIntelX(term: string, creds?: IntelxCreds, max = 8): Promise<Signal[]> {
+  const key = creds?.key || ENV_KEY;
+  const base = (creds?.url || DEFAULT_BASE).replace(/\/$/, "");
+  if (!key || !term) return [];
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 12000);
     try {
-      const start = await ix("/intelligent/search", {
+      const start = await ix("/intelligent/search", key, base, {
         method: "POST",
         signal: ctrl.signal,
         headers: { "content-type": "application/json" },
@@ -52,7 +57,7 @@ export async function searchIntelX(term: string, max = 8): Promise<Signal[]> {
       if (!id) return [];
       let records: any[] = [];
       for (let i = 0; i < 3; i++) {
-        const r = await ix(`/intelligent/search/result?id=${encodeURIComponent(id)}&limit=${max}`, { signal: ctrl.signal });
+        const r = await ix(`/intelligent/search/result?id=${encodeURIComponent(id)}&limit=${max}`, key, base, { signal: ctrl.signal });
         if (r.ok) {
           const d = await r.json();
           if (Array.isArray(d.records) && d.records.length) { records = d.records; break; }

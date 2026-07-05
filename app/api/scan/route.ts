@@ -6,6 +6,7 @@ import { dHashFromUrl, avatarMatch } from "@/lib/phash";
 import { extractFromText, normId } from "@/lib/extract";
 import { collect, collectorEnabled } from "@/lib/collector";
 import { searchIntelX, intelxEnabled } from "@/lib/intelx";
+import { hudsonRockEmail, hudsonRockUsername } from "@/lib/hudsonrock";
 import { looksLikePhone, phoneIntel, type PhoneIntel } from "@/lib/phone";
 import { looksLikeName, nameSignals } from "@/lib/name";
 import { scoreEvidence } from "@/lib/scoring";
@@ -347,6 +348,12 @@ export async function GET(req: NextRequest) {
     if (intelxEnabled && (!enabled || enabled.has("intelx"))) {
       const leaks = await searchIntelX(isEmail ? q : matchTarget);
       signals.push(...leaks);
+    }
+
+    // infostealer intel (Hudson Rock — free) — reveals compromise + services used
+    if (!enabled || enabled.has("hudsonrock")) {
+      const hr = isEmail ? await hudsonRockEmail(q) : await hudsonRockUsername(matchTarget);
+      signals.push(...hr);
     }
 
     for (const s of signals) {

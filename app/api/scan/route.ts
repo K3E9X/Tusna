@@ -10,7 +10,7 @@ import { searchIntelX, intelxEnabled } from "@/lib/intelx";
 import { recordedFutureLookup, recordedFutureEnabled } from "@/lib/recordedfuture";
 import { hudsonRockEmail, hudsonRockUsername } from "@/lib/hudsonrock";
 import { looksLikePhone, phoneIntel, type PhoneIntel } from "@/lib/phone";
-import { looksLikeName, nameSignals } from "@/lib/name";
+import { looksLikeName, nameSignals, nameCandidates } from "@/lib/name";
 import { scoreEvidence } from "@/lib/scoring";
 import { resolveIdentities, type ResolveNode } from "@/lib/resolve";
 import { githubNetwork, blueskyNetwork, mastodonNetwork, type NetworkResult } from "@/lib/relations";
@@ -227,9 +227,45 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ seed: q, mode: "phone", count: 1, signals: [sig], phone: intel });
   }
 
-  // name mode: full-name → person node + candidate handles + Name pivots
+  // name mode: a full name is a weak seed, so we don't just GUESS handles — we
+  // generate candidate handles AND scan them, then surface the accounts that actually
+  // exist. When a found account's public NAME matches the searched name (the classic
+  // "same person under a different pseudo"), that's a strong, honest hit.
   if (!isEmail && !isPhone && looksLikeName(q)) {
-    return NextResponse.json({ seed: q, mode: "name", count: 0, signals: nameSignals(q) });
+    const base = nameSignals(q); // [person, ...candidate leads]
+    const personId = base[0].id;
+    const cands = nameCandidates(q).slice(0, 5);
+    const enabledName = req.nextUrl.searchParams.get("connectors");
+    const enabledSet = enabledName != null ? new Set(enabledName.split(",").filter(Boolean)) : undefined;
+    const nameN = norm(q);
+    const settled = await Promise.all(cands.map((c) => scanUsername(c, enabledSet).then((ps) => ({ c, ps })).catch(() => ({ c, ps: [] as RawProfile[] }))));
+    const seenAcct = new Set<string>();
+    const hits: Signal[] = [];
+    for (const { c, ps } of settled) {
+      for (const p of ps) {
+        const key = norm(p.platform) + "|" + norm(p.handle.replace(/^u\//, ""));
+        if (seenAcct.has(key)) continue;
+        seenAcct.add(key);
+        const nameMatch = p.displayName ? norm(p.displayName) === nameN : false;
+        const ev: Evidence[] = [{
+          name: "Handle derived from name",
+          detail: `${p.handle} exists on ${p.platform} — from the candidate "${c}" built from "${q}". Link to this person is unconfirmed.`,
+          source: p.source, weight: 45,
+        }];
+        if (p.displayName) ev.push({ name: nameMatch ? "Matching name" : "Public name", detail: p.displayName + (nameMatch ? ` — matches the searched name` : ""), source: p.source, weight: nameMatch ? 82 : 50 });
+        if (p.location) ev.push({ name: "Location", detail: p.location, source: p.source, weight: 44 });
+        const scored = scoreEvidence(ev);
+        hits.push({
+          id: "namehit:" + key, platform: p.platform, handle: p.handle, disc: p.disc, url: p.url || undefined,
+          displayName: p.displayName || undefined, avatarUrl: p.avatar || undefined, kind: "platform",
+          tier: scored.tier, confidence: scored.confidence, status: "candidate", linkedIds: [personId], evidence: ev,
+        });
+      }
+    }
+    // found real accounts → show the person + those; otherwise fall back to the raw
+    // candidate leads so the analyst still has something to pivot on.
+    const signals = hits.length ? [base[0], ...hits] : base;
+    return NextResponse.json({ seed: q, mode: "name", count: hits.length, signals });
   }
 
   if (!isEmail && /[^\w.\-@]/.test(q)) {

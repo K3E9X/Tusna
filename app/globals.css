@@ -162,6 +162,32 @@ body {
 .add-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 .add-primary { border-color: var(--accent) !important; color: var(--accent) !important; }
 
+.viewtoggle { display: flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.viewtoggle button { background: transparent; border: 0; color: var(--ink-3); font-family: var(--mono); font-size: 10px; letter-spacing: .16em; padding: 7px 11px; cursor: pointer; }
+.viewtoggle button.on { background: var(--accent); color: #04201e; }
+
+.tablewrap { position: fixed; left: 0; right: 0; top: 66px; bottom: 0; z-index: 15; display: flex; flex-direction: column; background: var(--void); }
+.table-toolbar { display: flex; align-items: center; gap: 14px; padding: 10px 22px; border-bottom: 1px solid var(--line-soft); }
+.table-filter { flex: 1; max-width: 420px; background: var(--void-2); border: 1px solid var(--line); border-radius: 3px; color: var(--ink); font-family: var(--mono); font-size: 12px; padding: 8px 11px; outline: none; }
+.table-filter:focus { border-color: var(--accent); }
+.table-count { font-size: 10px; letter-spacing: .1em; color: var(--ink-3); }
+.table-scroll { flex: 1; overflow: auto; }
+.datatable { width: 100%; border-collapse: collapse; font-family: var(--mono); }
+.datatable th { position: sticky; top: 0; background: var(--void); text-align: left; font-size: 9px; letter-spacing: .12em; color: var(--ink-3);
+  padding: 10px 14px; border-bottom: 1px solid var(--line); cursor: pointer; white-space: nowrap; user-select: none; }
+.datatable th:hover { color: var(--ink); }
+.datatable td { padding: 9px 14px; border-bottom: 1px solid var(--line-soft); font-size: 12px; color: var(--ink-2); }
+.datatable tr { cursor: pointer; }
+.datatable tbody tr:hover { background: var(--void-2); }
+.datatable tr.sel { background: var(--accent-dim); }
+.datatable .t-type { text-transform: uppercase; font-size: 9px; letter-spacing: .08em; color: var(--ink-3); }
+.datatable .t-plat { color: var(--ink-3); font-size: 10px; letter-spacing: .06em; }
+.datatable .t-handle { color: var(--ink); word-break: break-all; }
+.datatable .t-num { font-variant-numeric: tabular-nums; text-align: center; }
+.datatable .t-status { font-size: 10px; letter-spacing: .06em; }
+.datatable .t-empty { text-align: center; color: var(--ink-4); padding: 30px; }
+.datatable a { color: var(--accent); text-decoration: none; }
+
 .legend { position: fixed; left: 22px; bottom: 20px; z-index: 20; font-size: 9.5px; letter-spacing: .18em; color: var(--ink-3); line-height: 2; }
 .legend .l { display: flex; align-items: center; gap: 8px; }
 .legend .tick { width: 16px; height: 1px; background: var(--ink-4); }

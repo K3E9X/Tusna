@@ -41,6 +41,9 @@ export default function OrbitBoard() {
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [dossier, setDossier] = useState<Dossier | null>(null);
+  const [view, setView] = useState<"board" | "table">("board");
+  const [tableSort, setTableSort] = useState<{ key: string; dir: 1 | -1 }>({ key: "tier", dir: 1 });
+  const [tableFilter, setTableFilter] = useState("");
   const [narrative, setNarrative] = useState<string | null>(null);
   const [verification, setVerification] = useState<Verification | null>(null);
   const [llmBusy, setLlmBusy] = useState(false);
@@ -544,10 +547,73 @@ export default function OrbitBoard() {
 
   return (
     <>
-      <div id="stage">
+      <div id="stage" style={{ visibility: view === "board" ? "visible" : "hidden" }}>
         <canvas ref={canvasRef} />
         <div className="bodies" ref={bodiesRef} />
       </div>
+
+      {view === "table" && (() => {
+        const tierRank: Record<string, number> = { verified: 0, probable: 1, possible: 2, weak: 3 };
+        const rows = currentSignals()
+          .map((s) => ({ s, tier: s.tier || scoreEvidence(s.evidence).tier, corr: scoreEvidence(s.evidence).corroboration }))
+          .filter((r) => {
+            const q = tableFilter.trim().toLowerCase();
+            return !q || r.s.platform.toLowerCase().includes(q) || r.s.handle.toLowerCase().includes(q) || (r.s.kind || "").includes(q);
+          });
+        const sk = tableSort.key, dir = tableSort.dir;
+        rows.sort((a, b) => {
+          let d = 0;
+          if (sk === "tier") d = tierRank[a.tier] - tierRank[b.tier];
+          else if (sk === "platform") d = a.s.platform.localeCompare(b.s.platform);
+          else if (sk === "handle") d = a.s.handle.localeCompare(b.s.handle);
+          else if (sk === "type") d = (a.s.kind || "platform").localeCompare(b.s.kind || "platform");
+          else if (sk === "corr") d = b.corr - a.corr;
+          else if (sk === "status") d = a.s.status.localeCompare(b.s.status);
+          return d * dir || tierRank[a.tier] - tierRank[b.tier];
+        });
+        const sortBtn = (key: string, label: string) => (
+          <th onClick={() => setTableSort((p) => ({ key, dir: p.key === key ? (p.dir === 1 ? -1 : 1) : 1 }))}>
+            {label}{sk === key ? (dir === 1 ? " ▲" : " ▼") : ""}
+          </th>
+        );
+        return (
+          <div className="tablewrap">
+            <div className="table-toolbar">
+              <input className="table-filter" placeholder="filter by platform / handle / type…" value={tableFilter} onChange={(e) => setTableFilter(e.target.value)} />
+              <span className="table-count">{rows.length} nodes</span>
+            </div>
+            <div className="table-scroll">
+              <table className="datatable">
+                <thead>
+                  <tr>
+                    {sortBtn("tier", "TIER")}
+                    {sortBtn("type", "TYPE")}
+                    {sortBtn("platform", "PLATFORM")}
+                    {sortBtn("handle", "HANDLE / VALUE")}
+                    {sortBtn("corr", "SIGNALS")}
+                    {sortBtn("status", "STATUS")}
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.s.id} className={selectedId === r.s.id ? "sel" : ""} onClick={() => setSelectedId(r.s.id)}>
+                      <td><span className={"da-tier t-" + r.tier}>{r.tier}</span></td>
+                      <td className="t-type">{r.s.kind || "platform"}</td>
+                      <td className="t-plat">{r.s.platform}</td>
+                      <td className="t-handle">{r.s.handle}</td>
+                      <td className="t-num">{r.corr}</td>
+                      <td className="t-status">{r.s.status}</td>
+                      <td>{r.s.url && <a href={r.s.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>↗</a>}</td>
+                    </tr>
+                  ))}
+                  {rows.length === 0 && <tr><td colSpan={7} className="t-empty">no nodes — run a scan / investigate</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="chrome">
         <div className="wordmark">TUSNA <small>ORBIT</small></div>
@@ -560,6 +626,10 @@ export default function OrbitBoard() {
             aria-label="seed"
           />
         </label>
+        <div className="viewtoggle">
+          <button className={view === "board" ? "on" : ""} onClick={() => setView("board")}>ORBIT</button>
+          <button className={view === "table" ? "on" : ""} onClick={() => setView("table")}>TABLE</button>
+        </div>
         <div className="flex" />
         <div className="readout">
           {scanMsg && <span style={{ color: "var(--accent)" }}>{scanMsg}</span>}
@@ -631,12 +701,16 @@ export default function OrbitBoard() {
         </div>
       </div>
 
-      <div className="legend">
-        {BAND_ORDER.map((k) => (
-          <div className="l" key={k}><span className="tick" />{BANDS[k].label}</div>
-        ))}
-      </div>
-      <div className="hint">seed&nbsp;· username <b>· email · phone · name</b>&nbsp;&nbsp;/&nbsp;&nbsp;⚡ INVESTIGATE&nbsp;&nbsp;/&nbsp;&nbsp;right-click&nbsp;· pivot · focus&nbsp;&nbsp;/&nbsp;&nbsp;▤ DOSSIER</div>
+      {view === "board" && (
+        <>
+          <div className="legend">
+            {BAND_ORDER.map((k) => (
+              <div className="l" key={k}><span className="tick" />{BANDS[k].label}</div>
+            ))}
+          </div>
+          <div className="hint">seed&nbsp;· username <b>· email · phone · name</b>&nbsp;&nbsp;/&nbsp;&nbsp;⚡ INVESTIGATE&nbsp;&nbsp;/&nbsp;&nbsp;right-click&nbsp;· pivot · focus&nbsp;&nbsp;/&nbsp;&nbsp;▤ DOSSIER</div>
+        </>
+      )}
 
       {addForm && (
         <div className="add-overlay" onClick={() => setAddForm(null)}>

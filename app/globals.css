@@ -49,8 +49,9 @@ body {
 
 .chrome { position: fixed; left: 0; right: 0; top: 0; padding: 18px 22px; display: flex; align-items: center; gap: 18px; z-index: 20; pointer-events: none; }
 .chrome > * { pointer-events: auto; }
-.wordmark { display: flex; align-items: baseline; gap: 9px; letter-spacing: .34em; font-size: 12px; color: var(--ink); }
-.wordmark small { letter-spacing: .28em; font-size: 9px; color: var(--ink-3); }
+.wordmark { display: flex; align-items: center; gap: 9px; letter-spacing: .34em; font-size: 12px; color: var(--ink); }
+.wordmark small { letter-spacing: .28em; font-size: 9px; color: var(--ink-3); align-self: baseline; }
+.wm-logo { flex: none; margin-right: 1px; display: block; }
 .seed-in { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); }
 .seed-in > span { color: var(--ink-3); }
 .seed-in input { background: transparent; border: 0; border-bottom: 1px solid var(--line); color: var(--accent);

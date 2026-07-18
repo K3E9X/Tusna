@@ -19,6 +19,7 @@ import { buildTimeline } from "@/lib/timeline";
 import { loadSettings, saveSettings, cfgHeaders, toClientConfig, type OctopusSettings } from "@/lib/settings";
 import { migrateLegacyStorage } from "@/lib/migrate";
 import { toGraphML } from "@/lib/graphexport";
+import { Logo } from "./Logo";
 import { LLM_PRESETS } from "@/lib/llmconfig";
 import type { AssistResult } from "@/lib/assist";
 
@@ -1042,7 +1043,7 @@ export default function OrbitBoard() {
       {view === "map" && <MapView signals={currentSignals()} onSelect={(id) => setSelectedId(id)} />}
 
       <div className="chrome">
-        <div className="wordmark">OCTOPUS <small>ORBIT</small></div>
+        <div className="wordmark"><Logo size={22} className="wm-logo" />OCTOPUS <small>ORBIT</small></div>
         <label className="seed-in">
           <span>seed</span>
           <input

@@ -7,7 +7,7 @@ import type { Signal } from "./signals";
 
 const ENV_KEY = process.env.INTELX_API_KEY || "";
 const DEFAULT_BASE = (process.env.INTELX_URL || "https://2.intelx.io").replace(/\/$/, "");
-const UA = "Tusna-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
+const UA = "Octopus-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
 
 export interface IntelxCreds { key?: string; url?: string; }
 /** Enabled when a key is present in env OR supplied by the caller (API panel). */

@@ -73,7 +73,7 @@ export interface Signal {
   clusterTier?: "verified" | "probable" | "possible";
   /** ISO date the account/footprint appeared (for the timeline), when known */
   createdAt?: string;
-  /** chain of custody — ISO timestamp this fact was collected by Tusna */
+  /** chain of custody — ISO timestamp this fact was collected by Octopus */
   collectedAt?: string;
   /** resolved geo point (for location nodes) — drives the map view */
   place?: GeoPlace;

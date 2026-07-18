@@ -16,7 +16,7 @@ export interface Case {
   signals: Signal[];
 }
 
-const KEY = "tusna:cases:v1";
+const KEY = "octopus:cases:v1";
 let backend: "server" | "local" | null = null;
 
 /** Which backend is in use (null until the first listCases probe). */
@@ -81,7 +81,7 @@ export interface Snapshot {
   signals: Signal[];
 }
 
-const SNAP_KEY = "tusna:snapshots:v1";
+const SNAP_KEY = "octopus:snapshots:v1";
 function readLocalSnaps(): Record<string, Snapshot[]> {
   if (typeof window === "undefined") return {};
   try { return JSON.parse(window.localStorage.getItem(SNAP_KEY) || "{}"); } catch { return {}; }

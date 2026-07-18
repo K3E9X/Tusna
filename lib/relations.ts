@@ -1,6 +1,6 @@
 // Relationship graph — map the person's WORLD, not just their accounts.
 //
-// Tusna's graph is otherwise star-shaped: one identity, its accounts. Real
+// Octopus's graph is otherwise star-shaped: one identity, its accounts. Real
 // investigation also needs the edges between PEOPLE — who they follow, who follows
 // them, which orgs/groups they belong to. GitHub's public API exposes exactly this
 // with no auth, so it is the first, cleanest source of a genuine network.
@@ -12,7 +12,7 @@
 
 import type { Signal, Relation } from "./signals";
 
-const UA = "Tusna-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
+const UA = "Octopus-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
 const GH = "https://api.github.com";
 const BSKY = "https://public.api.bsky.app";
 const MASTO = "https://mastodon.social";

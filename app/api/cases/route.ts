@@ -23,11 +23,11 @@ export async function GET(req: NextRequest) {
     await ensureSchema();
     const q = sql()!;
     if (history) {
-      const rows = await q`SELECT snap_id, taken_at, signals FROM tusna_snapshots WHERE case_id = ${history} ORDER BY taken_at DESC LIMIT 30`;
+      const rows = await q`SELECT snap_id, taken_at, signals FROM octopus_snapshots WHERE case_id = ${history} ORDER BY taken_at DESC LIMIT 30`;
       const snapshots = rows.map((r: any) => ({ snapId: r.snap_id, takenAt: Number(r.taken_at), signals: r.signals }));
       return NextResponse.json({ configured: true, snapshots });
     }
-    const rows = await q`SELECT id, name, seed, mode, saved_at, signals FROM tusna_cases ORDER BY saved_at DESC`;
+    const rows = await q`SELECT id, name, seed, mode, saved_at, signals FROM octopus_cases ORDER BY saved_at DESC`;
     const cases = rows.map((r: any) => ({
       id: r.id, name: r.name, seed: r.seed, mode: r.mode,
       savedAt: Number(r.saved_at), signals: r.signals,
@@ -49,14 +49,14 @@ export async function POST(req: NextRequest) {
     await ensureSchema();
     const q = sql()!;
     const signals = JSON.stringify(c.signals);
-    await q`INSERT INTO tusna_cases (id, name, seed, mode, saved_at, signals)
+    await q`INSERT INTO octopus_cases (id, name, seed, mode, saved_at, signals)
             VALUES (${c.id}, ${c.name}, ${c.seed}, ${c.mode}, ${c.savedAt}, ${signals}::jsonb)
             ON CONFLICT (id) DO UPDATE SET
               name = EXCLUDED.name, seed = EXCLUDED.seed, mode = EXCLUDED.mode,
               saved_at = EXCLUDED.saved_at, signals = EXCLUDED.signals`;
     // append an immutable snapshot for chain-of-custody history
     const snapId = `${c.id}:${c.savedAt}`;
-    await q`INSERT INTO tusna_snapshots (snap_id, case_id, seed, taken_at, signals)
+    await q`INSERT INTO octopus_snapshots (snap_id, case_id, seed, taken_at, signals)
             VALUES (${snapId}, ${c.id}, ${c.seed}, ${c.savedAt}, ${signals}::jsonb)
             ON CONFLICT (snap_id) DO NOTHING`;
     return NextResponse.json({ configured: true, case: c });
@@ -73,7 +73,7 @@ export async function DELETE(req: NextRequest) {
   try {
     await ensureSchema();
     const q = sql()!;
-    await q`DELETE FROM tusna_cases WHERE id = ${id}`;
+    await q`DELETE FROM octopus_cases WHERE id = ${id}`;
     return NextResponse.json({ configured: true });
   } catch (e) {
     return NextResponse.json({ configured: true, error: String(e) }, { status: 500 });

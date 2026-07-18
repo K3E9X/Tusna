@@ -1,4 +1,4 @@
-# OSINT tools landscape for Tusna (2026 research)
+# OSINT tools landscape for Octopus (2026 research)
 
 > Research done in July 2026 by an agent team (infra, email/phone, usernames, face, threat intel, frameworks) + expert synthesis.
 > Goal: go **beyond the famous tools** and cover everything useful for **identity correlation** (a person/handle's presence on the net), **open source AND commercial**.
@@ -22,7 +22,7 @@ The ones that add the most to an aggregation platform, and are cited less than M
 | 7 | **GreyNoise** | Filters the "noise": knows which IPs scan the Internet → cleans false infra signals. | web + API | 🟡 (Community 🟢) |
 | 8 | **holehe** | Email → account existence on 120+ sites via "forgot password", silently. | CLI | 🟢 ⚠️ |
 | 9 | **IPQualityScore** | Fraud scoring for email + phone + IP (VoIP/disposable, risk), 1000 free credits/mo. | API | 🟡 |
-| 10 | **sn0int** | **Semi-automatic** OSINT framework with a module registry — close to Tusna's spirit. | CLI/pkg | 🟢 |
+| 10 | **sn0int** | **Semi-automatic** OSINT framework with a module registry — close to Octopus's spirit. | CLI/pkg | 🟢 |
 | 11 | **Castrickclues** | Reverse email/username/phone claiming **no breach databases** (GDPR-clean). | web | 🟡 |
 | 12 | **Lenso.ai** | AI reverse image (faces, places, duplicates) — more "intelligent" than TinEye. | web | 🟡 |
 | 13 | **GHunt** | Deep OSINT on a Google account via email/GAIA ID. Powerful but fragile. | CLI | 🟢 ⚠️ |
@@ -47,7 +47,7 @@ The core of the "where is this person on the net" use-case.
 - **Snoop Project** — 🟢 very large site base (CIS included); active but Russian docs, heavy packaging.
 - **Toutatis** (megadose) — 🟢 ⚠️ extracts obfuscated email/phone from an **Instagram** profile; works intermittently depending on IG defenses. **Osintgram** ✝️ is broken/dead in 2026.
 
-**For Tusna:** ingest the WhatsMyName dataset + wrap Maigret (profile data) + Blackbird (speed). Each hit becomes a candidate "body" on the Orbit board.
+**For Octopus:** ingest the WhatsMyName dataset + wrap Maigret (profile data) + Blackbird (speed). Each hit becomes a candidate "body" on the Orbit board.
 
 ## 2. Email — enrichment
 
@@ -126,11 +126,11 @@ Mostly paid, but they provide coverage no OSS tool matches. Clearly separate **K
 
 ## 7. Self-host aggregation frameworks (competitors & inspirations)
 
-- **IntelOwl** — 🟢 — **the reference model** for Tusna: Django + Celery + Postgres, analyzers/connectors/pivots/playbooks plugins. Study closely (or extend).
-- **sn0int** — 🟢 — **semi-automatic** OSINT framework with a module registry and entity graph. Very close to Tusna's spirit.
+- **IntelOwl** — 🟢 — **the reference model** for Octopus: Django + Celery + Postgres, analyzers/connectors/pivots/playbooks plugins. Study closely (or extend).
+- **sn0int** — 🟢 — **semi-automatic** OSINT framework with a module registry and entity graph. Very close to Octopus's spirit.
 - **Recon-ng** — 🟢 — modular framework (module marketplace) à la Metasploit of recon. Good for domain/person connectors.
 - **SpiderFoot** — 🟢 (HX 🔴) — automates 100+ sources from a seed. Powerful, but more "scan" than "fine identity correlation".
-- **Maltego CE** — 🟡 ⚖️ — the visual link-analysis reference, but **CE heavily limited** and commercial model; Tusna aims to be a modern web alternative.
+- **Maltego CE** — 🟡 ⚖️ — the visual link-analysis reference, but **CE heavily limited** and commercial model; Octopus aims to be a modern web alternative.
 - **OSINT Industries** — 🔴 — **commercial aggregator** email/phone → very broad, clean multi-service presence. Direct "correlation" competitor; watch as a product benchmark.
 - **Lampyre / Predicta Search** — 🔴 — commercial investigation platforms; UX benchmarks.
 - Dead: **Datasploit** ✝️, **Skiptracer** ⚠️.
@@ -144,7 +144,7 @@ Mostly paid, but they provide coverage no OSS tool matches. Clearly separate **K
 
 ---
 
-## Implications for Tusna
+## Implications for Octopus
 
 1. **Priority auto connectors** (reliable, API/CLI): Maigret + Blackbird (username), crt.sh + Netlas (infra), Epieos + holehe + EmailRep (email), IPQualityScore + Numverify (phone), internal pHash (avatar). → feed the Orbit board automatically.
 2. **Paid APIs behind feature flags + quotas**: Shodan, HIBP, IntelligenceX, PimEyes/FaceCheck. Variable cost isolated and monitored, labeled in the UI.

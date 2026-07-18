@@ -49,7 +49,7 @@ export async function metaFromUrl(url: string, timeoutMs = 6000): Promise<ImageM
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    const res = await fetch(url, { signal: ctrl.signal, cache: "no-store", headers: { "User-Agent": "Tusna-OSINT/0.1" } });
+    const res = await fetch(url, { signal: ctrl.signal, cache: "no-store", headers: { "User-Agent": "Octopus-OSINT/0.1" } });
     clearTimeout(t);
     if (!res.ok) return null;
     const buf = new Uint8Array(await res.arrayBuffer());

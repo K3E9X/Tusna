@@ -1,4 +1,4 @@
-# Tusna — full local stack in one command. Works on Windows (Docker Desktop / WSL2)
+# Octopus — full local stack in one command. Works on Windows (Docker Desktop / WSL2)
 # and Linux the same way.
 #
 #   docker compose up --build            # app + deep-scan collector
@@ -13,7 +13,7 @@
 services:
   app:
     build: .
-    image: tusna:local
+    image: octopus:local
     ports:
       - "3000:3000"
     environment:
@@ -34,7 +34,7 @@ services:
 
   collector:
     build: ./collector
-    image: tusna-collector:local
+    image: octopus-collector:local
     ports:
       - "8000:8000"
     environment:
@@ -47,14 +47,14 @@ services:
     profiles: ["db"]
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: tusna
-      POSTGRES_PASSWORD: tusna
-      POSTGRES_DB: tusna
+      POSTGRES_USER: octopus
+      POSTGRES_PASSWORD: octopus
+      POSTGRES_DB: octopus
     ports:
       - "5432:5432"
     volumes:
-      - tusna_pg:/var/lib/postgresql/data
+      - octopus_pg:/var/lib/postgresql/data
     restart: unless-stopped
 
 volumes:
-  tusna_pg:
+  octopus_pg:

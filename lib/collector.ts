@@ -1,8 +1,8 @@
 // Client for the optional Maigret collector worker (see collector/).
-// Activates only when COLLECTOR_URL is set; otherwise returns nothing and Tusna
+// Activates only when COLLECTOR_URL is set; otherwise returns nothing and Octopus
 // uses its built-in connectors. This is the "delegate deep collection, pull the
 // info" bridge: Maigret crawls 3000+ sites and extracts profile data/identifiers,
-// Tusna normalizes it into the entity graph.
+// Octopus normalizes it into the entity graph.
 
 import { normId } from "./extract";
 import type { RawProfile } from "./connectors";

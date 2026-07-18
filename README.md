@@ -1,9 +1,9 @@
-# Tusna
+# Octopus
 
 **The OSINT correlation cockpit.**
-Tusna's job is not to re-scrape the web — proven open-source collectors (Maigret, Holehe, SpiderFoot…) already do that. Tusna's job is the part that's rarely done well: **resolve one identity across everything those collectors surface** — merge, deduplicate, link, score with an honest tier, extract identifiers, pivot, and synthesize a person. It orchestrates the collectors and owns the correlation, the graph, the dossier, and the investigation workflow.
+Octopus's job is not to re-scrape the web — proven open-source collectors (Maigret, Holehe, SpiderFoot…) already do that. Octopus's job is the part that's rarely done well: **resolve one identity across everything those collectors surface** — merge, deduplicate, link, score with an honest tier, extract identifiers, pivot, and synthesize a person. It orchestrates the collectors and owns the correlation, the graph, the dossier, and the investigation workflow.
 
-> Design principle: *delegate collection, own correlation.* Plug collectors into the [worker](collector/), pull their output, and let Tusna do the intelligence.
+> Design principle: *delegate collection, own correlation.* Plug collectors into the [worker](collector/), pull their output, and let Octopus do the intelligence.
 
 The signature view is **Orbit**: identity correlation shown as a **gravitational system**. The seed (a username, an email, a person) sits at the center; every presence found on the net is a body in orbit; **the matching engine's confidence = the pull of gravity**. Strong evidence → tight orbit (the "confirmed self"); weak or contradicted evidence → drift into the cold. Spring physics: everything glides, nothing is frozen.
 
@@ -22,15 +22,15 @@ Works on **Windows and Linux** identically (pure Node.js; no native build step).
 
 ## Run it yourself — Docker / Kubernetes (self-host anywhere)
 
-Tusna is not tied to Vercel. It ships a standalone Docker image and a full local
+Octopus is not tied to Vercel. It ships a standalone Docker image and a full local
 stack. Every external dependency is optional — remove one and the app keeps running,
 degrading cleanly.
 
 **Single container:**
 
 ```bash
-docker build -t tusna .
-docker run -p 3000:3000 tusna          # http://localhost:3000
+docker build -t octopus .
+docker run -p 3000:3000 octopus          # http://localhost:3000
 ```
 
 **Full stack (app + deep-scan collector, one command)** — identical on Windows
@@ -44,8 +44,8 @@ docker compose --profile db up --build # + a local Postgres for durable cases
 **Kubernetes** (any cluster — EKS/GKE/AKS/k3s/minikube):
 
 ```bash
-# build & push both images to your registry, edit the image: fields in k8s/tusna.yaml
-kubectl apply -f k8s/tusna.yaml        # namespace, app (x2), collector, secrets
+# build & push both images to your registry, edit the image: fields in k8s/octopus.yaml
+kubectl apply -f k8s/octopus.yaml        # namespace, app (x2), collector, secrets
 ```
 
 All configuration is env vars (see [`.env.example`](.env.example)); all are optional.
@@ -110,7 +110,7 @@ This is the "install an app → it adapts to the seed and correlates with the ot
 **Deep collection (Maigret) + entity extraction.** Existence ("the handle exists here") isn't the goal — *knowledge* is. Two things build a real schema from a single username:
 
 - **Entity extraction** (always on, runs on Vercel): every collected bio / display name is mined for **emails, other aliases, and links**, which become their own **typed nodes** wired to the source — so the board grows from "platform presences" into a graph of a person's identifiers. An alias that matches an existing platform links them instead of duplicating.
-- **Maigret collector** (optional worker in [`collector/`](collector/)): for real depth, Tusna delegates to **Maigret** — 3000+ sites *with profile-data extraction and identifier discovery* — and pulls the structured result into the same graph. **One-click deploy** via the [`render.yaml`](render.yaml) blueprint ([Deploy to Render](https://render.com/deploy?repo=https://github.com/K3E9X/Tusna)), then set `COLLECTOR_URL` on Vercel; the "Maigret (deep)" app then feeds every scan. Without it, the built-in connectors are used. This is the "let a proven tool do the heavy collection, we pull and correlate" model.
+- **Maigret collector** (optional worker in [`collector/`](collector/)): for real depth, Octopus delegates to **Maigret** — 3000+ sites *with profile-data extraction and identifier discovery* — and pulls the structured result into the same graph. **One-click deploy** via the [`render.yaml`](render.yaml) blueprint ([Deploy to Render](https://render.com/deploy?repo=https://github.com/K3E9X/Tusna)), then set `COLLECTOR_URL` on Vercel; the "Maigret (deep)" app then feeds every scan. Without it, the built-in connectors are used. This is the "let a proven tool do the heavy collection, we pull and correlate" model.
 
 **Typed nodes.** Discovered entities are styled by kind so the graph reads at a glance: **platform** accounts (2-letter tag), **emails** (✉, dashed warm ring), **aliases** (~, violet ring). Confidence stays encoded by orbit distance + brightness.
 
@@ -138,7 +138,7 @@ A single weak signal can never masquerade as strong. The numeric confidence is s
 
 ## Deep scan (async jobs)
 
-Long collectors (SpiderFoot, deep Maigret, Holehe) can't run inside a serverless timeout, so the [worker](collector/) runs them as **background jobs**: **⛏ DEEP** starts a job for the seed (Maigret for a username, Holehe for an email, SpiderFoot for a domain), Tusna polls it, and merges the normalized result into the board when it finishes — with a live `running… Ns` readout. Needs the worker (`COLLECTOR_URL`); the fast built-in scan works without it.
+Long collectors (SpiderFoot, deep Maigret, Holehe) can't run inside a serverless timeout, so the [worker](collector/) runs them as **background jobs**: **⛏ DEEP** starts a job for the seed (Maigret for a username, Holehe for an email, SpiderFoot for a domain), Octopus polls it, and merges the normalized result into the board when it finishes — with a live `running… Ns` readout. Needs the worker (`COLLECTOR_URL`); the fast built-in scan works without it.
 
 ## Three views
 
@@ -167,7 +167,7 @@ Every brief is then **verified deterministically** (no second LLM): each `[citat
 Investigations can be **saved and reloaded** (SAVE / CASES in the top bar). Storage is hybrid:
 
 - **No config → browser (`localStorage`)**: zero setup, works on Vercel immediately. Single-browser.
-- **With a Postgres/Neon URL → server-side**: durable, multi-device. Set one of `POSTGRES_URL` / `DATABASE_URL` / `NEON_DATABASE_URL` as a Vercel env var (e.g. create a free Neon database from the Vercel Marketplace and copy its connection string). The `tusna_cases` table is created automatically on first use. The CASES panel shows which backend is active (`stored: server` / `local`).
+- **With a Postgres/Neon URL → server-side**: durable, multi-device. Set one of `POSTGRES_URL` / `DATABASE_URL` / `NEON_DATABASE_URL` as a Vercel env var (e.g. create a free Neon database from the Vercel Marketplace and copy its connection string). The `octopus_cases` table is created automatically on first use. The CASES panel shows which backend is active (`stored: server` / `local`).
 
 Cases can also be **exported and imported as JSON files** (EXPORT / IMPORT), independent of storage — the simplest way to move a case between machines or back it up.
 

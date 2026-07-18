@@ -46,7 +46,7 @@ export interface RawProfile {
   source: string;
 }
 
-const UA = "Tusna-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
+const UA = "Octopus-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
 
 async function getJSON(url: string, timeoutMs = 6000): Promise<any | null> {
   const ctrl = new AbortController();

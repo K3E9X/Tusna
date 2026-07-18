@@ -1,17 +1,17 @@
-# Tusna Collector (Maigret worker)
+# Octopus Collector (Maigret worker)
 
-Tusna's automated connectors are clean but shallow (existence + a few fields). For
+Octopus's automated connectors are clean but shallow (existence + a few fields). For
 **deep collection from a username** — 3000+ sites *with* profile-data extraction and
 identifier discovery (real name, other usernames, emails, locations found in profiles)
-— Tusna delegates to **Maigret** and pulls the result. This worker is that bridge.
+— Octopus delegates to **Maigret** and pulls the result. This worker is that bridge.
 
 ```
-username ──▶ Tusna /api/scan ──(COLLECTOR_URL set)──▶ collector /scan ──▶ Maigret
+username ──▶ Octopus /api/scan ──(COLLECTOR_URL set)──▶ collector /scan ──▶ Maigret
                      ◀── normalized entity graph ◀── { sites, identifiers } ◀──┘
 ```
 
-This worker is Tusna's **collection hub** — plug best-in-class OSS collectors here and
-let Tusna pull & correlate. It currently exposes **Maigret** (username → deep profiles)
+This worker is Octopus's **collection hub** — plug best-in-class OSS collectors here and
+let Octopus pull & correlate. It currently exposes **Maigret** (username → deep profiles)
 and **Holehe** (email → accounts on 120+ mainstream sites, *no alert to the target*).
 Natural next modules: **SpiderFoot** (200+ modules, one target → everything) and
 **theHarvester** (domain → emails/subdomains).
@@ -27,7 +27,7 @@ GET /holehe?email=<e>[&token=<secret>]
 ```
 
 **Async jobs** — for scans that take minutes (SpiderFoot, deep Maigret) and would
-blow a serverless timeout. The worker runs them in a background thread; Tusna starts
+blow a serverless timeout. The worker runs them in a background thread; Octopus starts
 a job and polls it.
 
 ```
@@ -42,7 +42,7 @@ SpiderFoot is available.
 
 `sites` = claimed accounts (with any profile fields Maigret extracted); `identifiers` =
 aggregated discovered data (other handles, emails, names). `used` = mainstream sites where
-the email is registered (via password-recovery probing, silent). Tusna turns all of it into
+the email is registered (via password-recovery probing, silent). Octopus turns all of it into
 graph nodes.
 
 ## Run locally
@@ -57,8 +57,8 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 Or with Docker:
 
 ```bash
-docker build -t tusna-collector collector/
-docker run -p 8000:8000 tusna-collector
+docker build -t octopus-collector collector/
+docker run -p 8000:8000 octopus-collector
 ```
 
 ## Deploy — one click (Render, free)
@@ -70,17 +70,17 @@ The repo ships a [`render.yaml`](../render.yaml) blueprint, so:
 1. Click the button (or Render → **New → Blueprint** → pick this repo). Render builds
    `collector/Dockerfile`, runs the free web service, and **auto-generates** a
    `COLLECTOR_TOKEN`.
-2. Copy the service URL (e.g. `https://tusna-collector.onrender.com`) and the generated
+2. Copy the service URL (e.g. `https://octopus-collector.onrender.com`) and the generated
    token (Render → the service → **Environment**).
-3. In your **Tusna Vercel project → Settings → Environment Variables**, add:
+3. In your **Octopus Vercel project → Settings → Environment Variables**, add:
    - `COLLECTOR_URL` = the worker URL
    - `COLLECTOR_TOKEN` = the same token
-   Redeploy Tusna. The **"Maigret (deep)"** app now feeds every username scan.
+   Redeploy Octopus. The **"Maigret (deep)"** app now feeds every username scan.
 
 Other hosts work too (Railway "Deploy from repo" → root `collector/`, or `fly launch`
 in `collector/`).
 
-Tusna auto-detects `COLLECTOR_URL`: present → scans pull Maigret's rich data; absent →
+Octopus auto-detects `COLLECTOR_URL`: present → scans pull Maigret's rich data; absent →
 built-in connectors. Nothing else to change.
 
 > First call after the free instance sleeps is slow (cold start + Maigret warm-up).

@@ -1,4 +1,4 @@
-// Manual intake → correlation. When an analyst finds something Tusna can't reach
+// Manual intake → correlation. When an analyst finds something Octopus can't reach
 // automatically (an Instagram / Facebook / LinkedIn account, a fact from a paywalled
 // source), they capture it here — and it flows through the SAME correlation machinery
 // as automated collection: it links to existing nodes by handle / name / email, its

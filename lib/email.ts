@@ -9,7 +9,7 @@ import { promises as dns } from "dns";
 import { scanUsername, type RawProfile, type ProfileLink } from "./connectors";
 import { scanWmn } from "./wmn";
 
-const UA = "Tusna-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
+const UA = "Octopus-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
 
 async function fetchJSON(url: string, timeoutMs = 6000): Promise<any | null> {
   const ctrl = new AbortController();

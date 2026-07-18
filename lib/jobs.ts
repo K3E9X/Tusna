@@ -1,5 +1,5 @@
 // Async deep-scan jobs — for scans that exceed a serverless timeout (SpiderFoot,
-// deep Maigret). The collector worker runs them in the background; Tusna starts a
+// deep Maigret). The collector worker runs them in the background; Octopus starts a
 // job, polls it, and merges the normalized result into the board when it finishes.
 
 import { normId } from "./extract";

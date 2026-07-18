@@ -8,7 +8,7 @@ import { normId } from "./extract";
 import type { Signal } from "./signals";
 
 const BASE = "https://cavalier.hudsonrock.com/api/json/v2/osint-tools";
-const UA = "Tusna-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
+const UA = "Octopus-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
 
 async function getJSON(url: string): Promise<any | null> {
   const ctrl = new AbortController();

@@ -2,7 +2,7 @@
 //
 // This is a BONUS source, wired exactly like Intelligence X: it activates only when a
 // key is present (RECORDED_FUTURE_API_KEY, a.k.a. RF_API_KEY). Remove the key and
-// Tusna runs unchanged — it is never a base dependency. Recorded Future is a paid
+// Octopus runs unchanged — it is never a base dependency. Recorded Future is a paid
 // enterprise product; entitlements (Identity, SOAR, risk) depend on the org's licence,
 // so the endpoints are env-configurable and every call degrades gracefully.
 //
@@ -17,7 +17,7 @@ const ENV_KEY = process.env.RECORDED_FUTURE_API_KEY || process.env.RF_API_KEY ||
 // Connect API base (risk/SOAR) and Identity API base — override per your contract.
 const BASE = (process.env.RF_API_URL || "https://api.recordedfuture.com/v2").replace(/\/$/, "");
 const IDENTITY = (process.env.RF_IDENTITY_URL || "https://api.recordedfuture.com/identity").replace(/\/$/, "");
-const UA = "Tusna-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
+const UA = "Octopus-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
 
 export const recordedFutureEnabled = ENV_KEY.length > 0;
 export const recordedFutureConfigured = (key?: string) => (key || ENV_KEY).length > 0;

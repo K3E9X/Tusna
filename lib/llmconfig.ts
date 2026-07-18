@@ -52,7 +52,7 @@ export async function llmChat(cfg: ResolvedLLM, messages: { role: string; conten
         ...(cfg.key ? { Authorization: "Bearer " + cfg.key } : {}),
         // OpenRouter asks for these; harmless elsewhere
         "HTTP-Referer": "https://github.com/K3E9X/Tusna",
-        "X-Title": "Tusna OSINT",
+        "X-Title": "Octopus OSINT",
       },
       body: JSON.stringify(body),
     });

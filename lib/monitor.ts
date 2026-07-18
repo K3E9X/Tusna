@@ -1,5 +1,5 @@
 // Monitoring — an investigation is not a snapshot. Accounts appear and vanish, bios
-// change, new breaches surface. Tusna keeps timestamped snapshots of a case; this
+// change, new breaches surface. Octopus keeps timestamped snapshots of a case; this
 // module diffs two of them so an analyst sees exactly WHAT CHANGED since last look —
 // the difference between a one-shot recon and an investigation that lives over time.
 

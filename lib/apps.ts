@@ -3,7 +3,7 @@
 
 import { BUILTIN_IDS } from "./registry";
 
-const KEY = "tusna:apps:v1";
+const KEY = "octopus:apps:v1";
 
 export function loadEnabled(): Set<string> {
   const def = new Set(BUILTIN_IDS); // all built-ins on by default

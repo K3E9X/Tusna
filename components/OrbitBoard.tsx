@@ -16,7 +16,8 @@ import { loadDecisions, saveDecision, applyDecisionsFiltered, suppressedIds } fr
 import { shouldWipeBeforeScan } from "@/lib/board";
 import { looksLikeName } from "@/lib/name";
 import { buildTimeline } from "@/lib/timeline";
-import { loadSettings, saveSettings, cfgHeaders, toClientConfig, type TusnaSettings } from "@/lib/settings";
+import { loadSettings, saveSettings, cfgHeaders, toClientConfig, type OctopusSettings } from "@/lib/settings";
+import { migrateLegacyStorage } from "@/lib/migrate";
 import { LLM_PRESETS } from "@/lib/llmconfig";
 import type { AssistResult } from "@/lib/assist";
 
@@ -62,7 +63,7 @@ export default function OrbitBoard() {
   const [barMenu, setBarMenu] = useState<"tools" | "data" | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const [apiOpen, setApiOpen] = useState(false);
-  const [settings, setSettings] = useState<TusnaSettings>({});
+  const [settings, setSettings] = useState<OctopusSettings>({});
   const [pings, setPings] = useState<Record<string, { ok: boolean; detail: string } | "loading">>({});
   const [assist, setAssist] = useState<AssistResult | null>(null);
   const [assistBusy, setAssistBusy] = useState(false);
@@ -138,9 +139,9 @@ export default function OrbitBoard() {
   const enabledRef = useRef(enabled);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { listCases().then(setCases).catch(() => {}); setEnabled(loadEnabled()); setSettings(loadSettings()); }, []);
+  useEffect(() => { migrateLegacyStorage(); listCases().then(setCases).catch(() => {}); setEnabled(loadEnabled()); setSettings(loadSettings()); }, []);
 
-  function updateSettings(patch: Partial<TusnaSettings>) {
+  function updateSettings(patch: Partial<OctopusSettings>) {
     setSettings((s) => { const n = { ...s, ...patch }; saveSettings(n); return n; });
   }
 
@@ -891,7 +892,7 @@ export default function OrbitBoard() {
     const blob = new Blob([caseToJSON(c)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `tusna-case-${s.replace(/[^\w.@-]/g, "_")}.json`;
+    a.href = url; a.download = `octopus-case-${s.replace(/[^\w.@-]/g, "_")}.json`;
     a.click();
     URL.revokeObjectURL(url);
     flashMsg("case exported");
@@ -1027,7 +1028,7 @@ export default function OrbitBoard() {
       {view === "map" && <MapView signals={currentSignals()} onSelect={(id) => setSelectedId(id)} />}
 
       <div className="chrome">
-        <div className="wordmark">TUSNA <small>ORBIT</small></div>
+        <div className="wordmark">OCTOPUS <small>ORBIT</small></div>
         <label className="seed-in">
           <span>seed</span>
           <input
@@ -1259,7 +1260,7 @@ export default function OrbitBoard() {
             <button className="insp-close" onClick={() => setGuideOpen(false)} aria-label="close">✕</button>
             <div className="insp-plat">GUIDE · how to run an investigation</div>
             <div className="guide-lead">
-              Tusna takes one <b>seed</b> — a username, email, phone or full name — collects public
+              Octopus takes one <b>seed</b> — a username, email, phone or full name — collects public
               footprint across many sources, and correlates it into a single identity: the accounts,
               emails, locations, relationships and leaks that belong to one person. You stay in control;
               nothing is auto-confirmed.
@@ -1267,14 +1268,14 @@ export default function OrbitBoard() {
 
             <div className="guide-sect">Start</div>
             <ol className="guide-steps">
-              <li><b>Type a seed</b> in the top-left field and press <b>INVESTIGATE</b>. Tusna scans, correlates and expands automatically, then opens the dossier.</li>
+              <li><b>Type a seed</b> in the top-left field and press <b>INVESTIGATE</b>. Octopus scans, correlates and expands automatically, then opens the dossier.</li>
               <li>Prefer manual control? Use <b>SCAN</b> for a single pass, then expand yourself.</li>
             </ol>
 
             <div className="guide-sect">Read the graph</div>
             <ol className="guide-steps">
               <li><b>Click any node</b> to open the inspector: its evidence, sources, and honest tier (VERIFIED / PROBABLE / POSSIBLE / WEAK — derived from evidence, not a fake percentage).</li>
-              <li><b>Judge it</b>: CONFIRM, REVIEW or REJECT. <b>Confirming a lead chains the investigation</b> — Tusna takes its new identifiers (a different username, a real name, a linked email) and searches from them, adding the leads for you to review. <b>Rejecting or removing a node suppresses it</b>: it is never proposed again on this seed.</li>
+              <li><b>Judge it</b>: CONFIRM, REVIEW or REJECT. <b>Confirming a lead chains the investigation</b> — Octopus takes its new identifiers (a different username, a real name, a linked email) and searches from them, adding the leads for you to review. <b>Rejecting or removing a node suppresses it</b>: it is never proposed again on this seed.</li>
               <li><b>Right-click a node</b> to Pivot, Auto-expand, set it as the new seed, or focus its sub-graph.</li>
             </ol>
 
@@ -1304,9 +1305,9 @@ export default function OrbitBoard() {
 
             <div className="guide-sect">Add your own findings</div>
             <div className="guide-lead">
-              Found an Instagram, Facebook or LinkedIn account by hand? <b>ADD FINDING</b>. Tusna runs
+              Found an Instagram, Facebook or LinkedIn account by hand? <b>ADD FINDING</b>. Octopus runs
               it through the same engine — linking it by handle, name, email and avatar, mining the bio,
-              and mapping the location — so your manual work fuses with what Tusna found on its own.
+              and mapping the location — so your manual work fuses with what Octopus found on its own.
             </div>
 
             <div className="guide-sect">Finish</div>
@@ -1322,7 +1323,7 @@ export default function OrbitBoard() {
         <div className="add-overlay" onClick={() => setAddForm(null)}>
           <div className="add-card" onClick={(e) => e.stopPropagation()}>
             <div className="add-title">CAPTURE &amp; CORRELATE{addForm.via ? <em> · via {addForm.via}</em> : null}</div>
-            <div className="add-sub">Found an Instagram / Facebook / LinkedIn account yourself? Enter what you saw. Tusna runs it through the same engine — links it by handle, name, email &amp; avatar, mines the bio, and maps the location.</div>
+            <div className="add-sub">Found an Instagram / Facebook / LinkedIn account yourself? Enter what you saw. Octopus runs it through the same engine — links it by handle, name, email &amp; avatar, mines the bio, and maps the location.</div>
             <div className="add-cols">
               <label className="add-field"><span>platform *</span>
                 <input autoFocus value={addForm.platform} placeholder="e.g. INSTAGRAM" onChange={(e) => setAddForm({ ...addForm, platform: e.target.value })} />

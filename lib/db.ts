@@ -27,7 +27,13 @@ export async function ensureSchema(): Promise<void> {
   if (!q) return;
   if (!_ready) {
     _ready = (async () => {
-      await q`CREATE TABLE IF NOT EXISTS tusna_cases (
+      // migrate legacy tables from the Tusna → Octopus rename. Each rename only fires
+      // when the old table exists and the new one doesn't yet, so existing server-side
+      // cases carry over. Table names are constants (no injection surface).
+      try { await q`ALTER TABLE IF EXISTS tusna_cases RENAME TO octopus_cases`; } catch { /* skip */ }
+      try { await q`ALTER TABLE IF EXISTS tusna_snapshots RENAME TO octopus_snapshots`; } catch { /* skip */ }
+      try { await q`ALTER TABLE IF EXISTS tusna_decisions RENAME TO octopus_decisions`; } catch { /* skip */ }
+      await q`CREATE TABLE IF NOT EXISTS octopus_cases (
         id        text PRIMARY KEY,
         name      text NOT NULL,
         seed      text,
@@ -37,16 +43,16 @@ export async function ensureSchema(): Promise<void> {
       )`;
       // append-only history: every save appends an immutable snapshot, so an
       // investigation has a chain of custody (what was seen, and when).
-      await q`CREATE TABLE IF NOT EXISTS tusna_snapshots (
+      await q`CREATE TABLE IF NOT EXISTS octopus_snapshots (
         snap_id   text PRIMARY KEY,
         case_id   text NOT NULL,
         seed      text,
         taken_at  bigint NOT NULL,
         signals   jsonb NOT NULL
       )`;
-      await q`CREATE INDEX IF NOT EXISTS tusna_snap_case ON tusna_snapshots (case_id, taken_at DESC)`;
+      await q`CREATE INDEX IF NOT EXISTS octopus_snap_case ON octopus_snapshots (case_id, taken_at DESC)`;
       // analyst decisions (confirm/reject) per seed — the feedback loop
-      await q`CREATE TABLE IF NOT EXISTS tusna_decisions (
+      await q`CREATE TABLE IF NOT EXISTS octopus_decisions (
         seed       text NOT NULL,
         node_id    text NOT NULL,
         status     text NOT NULL,

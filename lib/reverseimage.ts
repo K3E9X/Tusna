@@ -2,10 +2,10 @@
 //
 // pHash (lib/phash) already catches a recompressed copy of the identical image.
 // What it cannot do is match the same face across DIFFERENT photos — that needs a
-// face model or a reverse-image index. Rather than fake it, Tusna does the honest,
+// face model or a reverse-image index. Rather than fake it, Octopus does the honest,
 // battle-tested thing: it hands the analyst pre-filled deep links into the engines
 // that do it well (Yandex is best for faces; PimEyes is face-specialised). The human
-// runs the visual match — Tusna never invents a hit it cannot verify.
+// runs the visual match — Octopus never invents a hit it cannot verify.
 
 export interface ReverseImageEngine {
   id: string;

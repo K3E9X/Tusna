@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// POST { signals: Signal[] } (+ x-tusna-cfg header) → { configured, narrative }
+// POST { signals: Signal[] } (+ x-octopus-cfg header) → { configured, narrative }
 export async function POST(req: NextRequest) {
   const cfg = readClientConfig(req);
   if (!resolveLLM(cfg.llm).enabled) return NextResponse.json({ configured: false });

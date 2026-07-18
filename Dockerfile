@@ -1,8 +1,8 @@
-# Tusna web app — multi-stage build producing a tiny standalone image.
+# Octopus web app — multi-stage build producing a tiny standalone image.
 # Runs anywhere Node runs: Linux or Windows containers, Docker, Kubernetes, bare VM.
 #
-#   docker build -t tusna .
-#   docker run -p 3000:3000 tusna
+#   docker build -t octopus .
+#   docker run -p 3000:3000 octopus
 #
 # Optional env (all features degrade gracefully if unset):
 #   COLLECTOR_URL, COLLECTOR_TOKEN  → deep scans (Maigret/Holehe/SpiderFoot worker)

@@ -1,7 +1,7 @@
-# Tusna — Architecture & Product Strategy (OSINT aggregation & correlation platform)
+# Octopus — Architecture & Product Strategy (OSINT aggregation & correlation platform)
 
 > Architecture document v1. Role: product architect + lead engineer + OSINT research assistant.
-> Goal: build **Tusna**, a web platform aggregating public OSINT tools/sources,
+> Goal: build **Octopus**, a web platform aggregating public OSINT tools/sources,
 > with a dynamic search table, a matching / entity-resolution engine, and a lightweight LLM layer.
 
 ---
@@ -18,7 +18,7 @@
 
 **Legal & ethical guardrails (non-negotiable, built in from the MVP):**
 
-- **GDPR**: Tusna processes personal data. Legal basis (legitimate interest), minimization, limited retention, right to erasure, access log. → an **audit layer from day 1**, not optional.
+- **GDPR**: Octopus processes personal data. Legal basis (legitimate interest), minimization, limited retention, right to erasure, access log. → an **audit layer from day 1**, not optional.
 - **Source ToS respect**: no scraping that explicitly violates terms (e.g. LinkedIn, Meta). Prefer **official APIs + reputable OSINT tools**. Every connector carries a `legal_status` + `rate_policy` flag.
 - **Defensive scope**: legitimate investigation, threat intel, due diligence, brand protection. No harassment/stalking. → logged **consent/investigation mandate**, quotas, export watermark.
 - **No "illusion of completeness"**: any rate-limited, freemium, unstable or geo-restricted source is **labeled in the UI** (reliability + freshness badge).
@@ -27,7 +27,7 @@
 
 ## 1. Executive summary
 
-Tusna is **not** a script launcher: it's an **orchestration hub + a data store of correlated entities**. The value isn't "run theHarvester", it's **merging the results of 30 tools into a single entity view, deduplicated, linked and scored**.
+Octopus is **not** a script launcher: it's an **orchestration hub + a data store of correlated entities**. The value isn't "run theHarvester", it's **merging the results of 30 tools into a single entity view, deduplicated, linked and scored**.
 
 The open-source market has already solved two bricks you **must not rewrite**:
 

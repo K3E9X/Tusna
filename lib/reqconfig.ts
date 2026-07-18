@@ -1,5 +1,5 @@
 // Per-request config from the API panel. The client sends its keys (from the browser)
-// as a base64-encoded JSON blob in the `x-tusna-cfg` header; server routes read it and
+// as a base64-encoded JSON blob in the `x-octopus-cfg` header; server routes read it and
 // use it to OVERRIDE env vars. This lets keys live in the UI (self-host, no redeploy)
 // while env vars still work in production. Keys are never logged or persisted server-side.
 
@@ -17,7 +17,7 @@ export interface ClientConfig {
 
 export function readClientConfig(req: NextRequest): ClientConfig {
   try {
-    const raw = req.headers.get("x-tusna-cfg");
+    const raw = req.headers.get("x-octopus-cfg");
     if (!raw) return {};
     const json = typeof atob === "function" ? atob(raw) : Buffer.from(raw, "base64").toString("utf8");
     const o = JSON.parse(json);

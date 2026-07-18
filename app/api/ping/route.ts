@@ -4,7 +4,7 @@ import { resolveLLM, llmChat } from "@/lib/llmconfig";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const UA = "Tusna-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
+const UA = "Octopus-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
 
 async function withTimeout(fn: (s: AbortSignal) => Promise<Response>, ms = 12000): Promise<Response | null> {
   const c = new AbortController();

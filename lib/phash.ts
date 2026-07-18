@@ -6,7 +6,7 @@
 
 import Jimp from "jimp";
 
-const UA = "Tusna-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
+const UA = "Octopus-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
 const HASH_W = 9;
 const HASH_H = 8;
 

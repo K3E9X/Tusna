@@ -1,10 +1,10 @@
 """
-Tusna collector worker — wraps Maigret (3000+ sites, WITH profile-data extraction
-and identifier discovery) behind a small HTTP API that Tusna pulls from.
+Octopus collector worker — wraps Maigret (3000+ sites, WITH profile-data extraction
+and identifier discovery) behind a small HTTP API that Octopus pulls from.
 
-Tusna calls  GET /scan?username=<u>&top=<N>  and normalizes the rich result into
+Octopus calls  GET /scan?username=<u>&top=<N>  and normalizes the rich result into
 its entity graph. This is the "let a tool do the heavy collection, we pull the
-info" model — Maigret does the crawling/extraction, Tusna does correlation.
+info" model — Maigret does the crawling/extraction, Octopus does correlation.
 
 Run locally:   uvicorn main:app --host 0.0.0.0 --port 8000
 Deploy:        see collector/README.md (Render / Railway / Fly, free tiers)
@@ -23,7 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 SPIDERFOOT = os.environ.get("SPIDERFOOT_PATH", "/opt/spiderfoot/sf.py")
 
-app = FastAPI(title="Tusna Collector", version="0.1")
+app = FastAPI(title="Octopus Collector", version="0.1")
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"]
 )

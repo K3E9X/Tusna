@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// POST { signals, question? } (+ x-tusna-cfg header) → { configured, result, verification }
+// POST { signals, question? } (+ x-octopus-cfg header) → { configured, result, verification }
 export async function POST(req: NextRequest) {
   const cfg = readClientConfig(req);
   const resolved = resolveLLM(cfg.llm);

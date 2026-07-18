@@ -11,7 +11,7 @@ import type { Signal, Status } from "./signals";
 export type StoredStatus = Status | "removed";
 export type DecisionMap = Record<string, StoredStatus>; // nodeId → decision
 
-const KEY = "tusna:decisions:v1";
+const KEY = "octopus:decisions:v1";
 const seedKey = (seed: string) => seed.trim().toLowerCase();
 
 function readLocalAll(): Record<string, DecisionMap> {

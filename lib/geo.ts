@@ -10,7 +10,7 @@
 
 import type { GeoPlace } from "./signals";
 
-const UA = "Tusna-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
+const UA = "Octopus-OSINT/0.1 (+https://github.com/K3E9X/Tusna)";
 const NOMINATIM = "https://nominatim.openstreetmap.org";
 
 async function getJSON(url: string, timeoutMs = 6000): Promise<any | null> {

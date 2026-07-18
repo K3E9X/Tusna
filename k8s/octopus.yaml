@@ -1,28 +1,28 @@
-# Tusna on Kubernetes — app + deep-scan collector.
+# Octopus on Kubernetes — app + deep-scan collector.
 #
 # Build & push the images first (any registry), then apply:
-#   docker build -t <registry>/tusna:latest . && docker push <registry>/tusna:latest
-#   docker build -t <registry>/tusna-collector:latest ./collector && docker push <registry>/tusna-collector:latest
+#   docker build -t <registry>/octopus:latest . && docker push <registry>/octopus:latest
+#   docker build -t <registry>/octopus-collector:latest ./collector && docker push <registry>/octopus-collector:latest
 #   # edit the image: fields below to your registry, then:
-#   kubectl apply -f k8s/tusna.yaml
+#   kubectl apply -f k8s/octopus.yaml
 #
 # Everything optional lives in the Secret — leave a value empty to keep that feature off.
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: tusna
+  name: octopus
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: tusna-secrets
-  namespace: tusna
+  name: octopus-secrets
+  namespace: octopus
 type: Opaque
 stringData:
   # all optional — the app degrades gracefully when any of these is empty
   COLLECTOR_TOKEN: ""
-  POSTGRES_URL: ""            # e.g. postgres://user:pass@host:5432/tusna
+  POSTGRES_URL: ""            # e.g. postgres://user:pass@host:5432/octopus
   INTELX_API_KEY: ""
   RECORDED_FUTURE_API_KEY: "" # optional enterprise bonus source
   LLM_API_URL: ""
@@ -32,27 +32,27 @@ stringData:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tusna-app
-  namespace: tusna
-  labels: { app: tusna-app }
+  name: octopus-app
+  namespace: octopus
+  labels: { app: octopus-app }
 spec:
   replicas: 2
   selector:
-    matchLabels: { app: tusna-app }
+    matchLabels: { app: octopus-app }
   template:
     metadata:
-      labels: { app: tusna-app }
+      labels: { app: octopus-app }
     spec:
       containers:
         - name: app
-          image: ghcr.io/k3e9x/tusna:latest   # ← change to your registry
+          image: ghcr.io/k3e9x/octopus:latest   # ← change to your registry
           ports:
             - containerPort: 3000
           env:
             - name: COLLECTOR_URL
-              value: "http://tusna-collector:8000"
+              value: "http://octopus-collector:8000"
           envFrom:
-            - secretRef: { name: tusna-secrets }
+            - secretRef: { name: octopus-secrets }
           readinessProbe:
             httpGet: { path: /, port: 3000 }
             initialDelaySeconds: 15
@@ -68,10 +68,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: tusna-app
-  namespace: tusna
+  name: octopus-app
+  namespace: octopus
 spec:
-  selector: { app: tusna-app }
+  selector: { app: octopus-app }
   ports:
     - port: 80
       targetPort: 3000
@@ -80,26 +80,26 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tusna-collector
-  namespace: tusna
-  labels: { app: tusna-collector }
+  name: octopus-collector
+  namespace: octopus
+  labels: { app: octopus-collector }
 spec:
   replicas: 1
   selector:
-    matchLabels: { app: tusna-collector }
+    matchLabels: { app: octopus-collector }
   template:
     metadata:
-      labels: { app: tusna-collector }
+      labels: { app: octopus-collector }
     spec:
       containers:
         - name: collector
-          image: ghcr.io/k3e9x/tusna-collector:latest   # ← change to your registry
+          image: ghcr.io/k3e9x/octopus-collector:latest   # ← change to your registry
           ports:
             - containerPort: 8000
           env:
             - name: COLLECTOR_TOKEN
               valueFrom:
-                secretKeyRef: { name: tusna-secrets, key: COLLECTOR_TOKEN }
+                secretKeyRef: { name: octopus-secrets, key: COLLECTOR_TOKEN }
           readinessProbe:
             httpGet: { path: /health, port: 8000 }
             initialDelaySeconds: 20
@@ -111,10 +111,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: tusna-collector
-  namespace: tusna
+  name: octopus-collector
+  namespace: octopus
 spec:
-  selector: { app: tusna-collector }
+  selector: { app: octopus-collector }
   ports:
     - port: 8000
       targetPort: 8000

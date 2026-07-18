@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   try {
     await ensureSchema();
     const q = sql()!;
-    const rows = await q`SELECT node_id, status FROM tusna_decisions WHERE seed = ${seed}`;
+    const rows = await q`SELECT node_id, status FROM octopus_decisions WHERE seed = ${seed}`;
     const decisions: Record<string, string> = {};
     for (const r of rows as any[]) decisions[r.node_id] = r.status;
     return NextResponse.json({ configured: true, decisions });
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     if (!seed || !nodeId || !status) return NextResponse.json({ error: "seed, nodeId, status required" }, { status: 400 });
     await ensureSchema();
     const q = sql()!;
-    await q`INSERT INTO tusna_decisions (seed, node_id, status, updated_at)
+    await q`INSERT INTO octopus_decisions (seed, node_id, status, updated_at)
             VALUES (${String(seed).toLowerCase()}, ${nodeId}, ${status}, ${Date.now()})
             ON CONFLICT (seed, node_id) DO UPDATE SET status = EXCLUDED.status, updated_at = EXCLUDED.updated_at`;
     return NextResponse.json({ configured: true });

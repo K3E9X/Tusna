@@ -1,8 +1,8 @@
 {
-  "name": "tusna",
+  "name": "octopus",
   "version": "0.1.0",
   "private": true,
-  "description": "Tusna — OSINT identity correlation platform (Orbit view)",
+  "description": "Octopus — OSINT identity correlation platform (Orbit view)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

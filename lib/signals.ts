@@ -60,8 +60,8 @@ export interface Signal {
   linkedIds?: string[];
   /** typed edges to other people/orgs — the relationship graph (see RelationKind) */
   relations?: Relation[];
-  /** node type for styling: platform / email / alias / phone / location / leak / person / org */
-  kind?: "platform" | "email" | "alias" | "phone" | "person" | "location" | "leak" | "org";
+  /** node type for styling: platform / email / alias / phone / location / leak / person / org / domain */
+  kind?: "platform" | "email" | "alias" | "phone" | "person" | "location" | "leak" | "org" | "domain";
   /** public URL of the profile/source, when known (used by "open") */
   url?: string;
   /** real/display name from the profile, when known (used by the dossier) */

@@ -18,6 +18,7 @@ import { looksLikeName } from "@/lib/name";
 import { buildTimeline } from "@/lib/timeline";
 import { loadSettings, saveSettings, cfgHeaders, toClientConfig, type OctopusSettings } from "@/lib/settings";
 import { migrateLegacyStorage } from "@/lib/migrate";
+import { toGraphML } from "@/lib/graphexport";
 import { LLM_PRESETS } from "@/lib/llmconfig";
 import type { AssistResult } from "@/lib/assist";
 
@@ -404,7 +405,7 @@ export default function OrbitBoard() {
       const el = document.createElement("div");
       el.className = "body";
       el.dataset.kind = d.kind || "platform";
-      const discContent = d.kind === "email" ? "✉" : d.kind === "alias" ? "~" : d.kind === "phone" ? "☎" : d.kind === "location" ? "⌖" : d.kind === "leak" ? "⚠" : d.kind === "person" ? "◆" : d.kind === "org" ? "▣" : d.disc;
+      const discContent = d.kind === "email" ? "✉" : d.kind === "alias" ? "~" : d.kind === "phone" ? "☎" : d.kind === "location" ? "⌖" : d.kind === "leak" ? "⚠" : d.kind === "person" ? "◆" : d.kind === "org" ? "▣" : d.kind === "domain" ? "◇" : d.disc;
       el.innerHTML = `<div class="disc">${discContent}</div><div class="tag">${escapeHtml(d.handle)}</div><div class="conf">${d.confidence}%</div>`;
       bodiesEl.appendChild(el);
       elsRef.current[d.id] = el;
@@ -898,6 +899,19 @@ export default function OrbitBoard() {
     flashMsg("case exported");
   }
 
+  function exportGraphML() {
+    const sigs = currentSignals();
+    if (!sigs.length) { flashMsg("nothing to export"); return; }
+    const s = seedRef.current.trim() || "case";
+    const blob = new Blob([toGraphML(sigs, (x) => x.tier || scoreEvidence(x.evidence).tier)], { type: "application/xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `octopus-graph-${s.replace(/[^\w.@-]/g, "_")}.graphml`;
+    a.click();
+    URL.revokeObjectURL(url);
+    flashMsg("graph exported (GraphML)");
+  }
+
   async function importFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = "";
@@ -1076,6 +1090,7 @@ export default function OrbitBoard() {
               <div className="menu-pop">
                 <button className="menu-item" onClick={() => { setBarMenu(null); saveCurrent(); }}><b>Save case</b><span>Store the current board</span></button>
                 <button className="menu-item" onClick={() => { setBarMenu(null); exportCurrent(); }}><b>Export JSON</b><span>Download the case file</span></button>
+                <button className="menu-item" onClick={() => { setBarMenu(null); exportGraphML(); }}><b>Export graph (GraphML)</b><span>Open in flowsint / Maltego / Gephi</span></button>
                 <button className="menu-item" onClick={() => { setBarMenu(null); fileRef.current?.click(); }}><b>Import JSON</b><span>Load a case file</span></button>
               </div>
             )}
@@ -1150,7 +1165,7 @@ export default function OrbitBoard() {
               <div className="l" key={k}><span className="tick" />{BANDS[k].label}</div>
             ))}
           </div>
-          <div className="hint">Enter a seed (username, email, phone or name) and press INVESTIGATE&nbsp;&nbsp;/&nbsp;&nbsp;click a node for its evidence&nbsp;&nbsp;/&nbsp;&nbsp;right-click to pivot&nbsp;&nbsp;/&nbsp;&nbsp;new here? open GUIDE</div>
+          <div className="hint">Enter a seed (username, email, phone, name or domain) and press INVESTIGATE&nbsp;&nbsp;/&nbsp;&nbsp;click a node for its evidence&nbsp;&nbsp;/&nbsp;&nbsp;right-click to pivot&nbsp;&nbsp;/&nbsp;&nbsp;new here? open GUIDE</div>
         </>
       )}
 
@@ -1260,7 +1275,7 @@ export default function OrbitBoard() {
             <button className="insp-close" onClick={() => setGuideOpen(false)} aria-label="close">✕</button>
             <div className="insp-plat">GUIDE · how to run an investigation</div>
             <div className="guide-lead">
-              Octopus takes one <b>seed</b> — a username, email, phone or full name — collects public
+              Octopus takes one <b>seed</b> — a username, email, phone, full name or domain — collects public
               footprint across many sources, and correlates it into a single identity: the accounts,
               emails, locations, relationships and leaks that belong to one person. You stay in control;
               nothing is auto-confirmed.

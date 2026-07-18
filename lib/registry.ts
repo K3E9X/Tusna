@@ -43,6 +43,7 @@ export const BUILTIN_APPS: AppDef[] = [
   { id: "phash", name: "Avatar pHash", category: "Correlation", kind: "builtin", input: "image", status: "free", desc: "Links accounts by matching profile photos." },
   { id: "network", name: "Network graph", category: "Correlation", kind: "builtin", input: "username", status: "free", desc: "GitHub followers / following / orgs → related people + activity-based timezone." },
   { id: "geo", name: "Geo resolve", category: "Correlation", kind: "builtin", input: "both", status: "free", desc: "Geocode locations (Nominatim) + reward locations several sources agree on. Powers the map." },
+  { id: "domain", name: "Domain / infra", category: "Infrastructure", kind: "builtin", input: "domain", status: "free", desc: "Domain enrichment (RDAP registrant, DNS, subdomains via crt.sh, hosting geo) that feeds the identity graph. Also enriches a personal site found in a profile." },
 ];
 
 // Curated cipher387-style manual pivots (open externally with the seed).

@@ -12,6 +12,7 @@ import { readClientConfig } from "@/lib/reqconfig";
 import { hudsonRockEmail, hudsonRockUsername } from "@/lib/hudsonrock";
 import { looksLikePhone, phoneIntel, type PhoneIntel } from "@/lib/phone";
 import { looksLikeName, nameSignals, nameCandidates } from "@/lib/name";
+import { looksLikeDomain, enrichDomain } from "@/lib/domain";
 import { scoreEvidence } from "@/lib/scoring";
 import { resolveIdentities, type ResolveNode } from "@/lib/resolve";
 import { githubNetwork, blueskyNetwork, mastodonNetwork, type NetworkResult } from "@/lib/relations";
@@ -270,6 +271,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ seed: q, mode: "name", count: hits.length, signals });
   }
 
+  // domain mode: infrastructure enrichment that FEEDS the identity graph — registrant
+  // (RDAP), mail/hosting (DNS), subdomains (cert transparency), hosting geolocation.
+  if (!isEmail && !isPhone && looksLikeDomain(q)) {
+    const { signals, edges } = await enrichDomain(q, new Date().toISOString());
+    const byId = new Map(signals.map((s) => [s.id, s]));
+    for (const [a, b] of edges) {
+      const A = byId.get(a), B = byId.get(b);
+      if (!A || !B) continue;
+      A.linkedIds = [...new Set([...(A.linkedIds || []), b])];
+      B.linkedIds = [...new Set([...(B.linkedIds || []), a])];
+    }
+    signals.sort((x, y) => y.confidence - x.confidence);
+    return NextResponse.json({ seed: q, mode: "domain", count: signals.length, signals });
+  }
+
   if (!isEmail && /[^\w.\-@]/.test(q)) {
     return NextResponse.json({ error: "invalid input" }, { status: 400 });
   }
@@ -280,6 +296,7 @@ export async function GET(req: NextRequest) {
   const phashOn = !enabled || enabled.has("phash");
   const networkOn = !enabled || enabled.has("network");
   const geoOn = !enabled || enabled.has("geo");
+  const domainOn = !enabled || enabled.has("domain");
   const collectedAt = new Date().toISOString(); // chain of custody: one stamp per scan
   try {
     let apiProfiles: RawProfile[];
@@ -552,6 +569,37 @@ export async function GET(req: NextRequest) {
               b.linkedIds = [...new Set([...(b.linkedIds || []), a.id])];
             }
           }
+        }
+      }
+    }
+
+    // --- domain / infrastructure bridge (flowsint idea, wired to identity) ---
+    // If the person exposes a PERSONAL site, enrich its domain and fold the results
+    // (registrant email/name, hosting, subdomains, server geo) into the graph — so
+    // infrastructure becomes evidence about the PERSON.
+    if (domainOn) {
+      const PROVIDERS = /(github|gitlab|twitter|x|keybase|gravatar|linkedin|facebook|instagram|youtube|mastodon|bsky|bluesky|medium|dev|reddit|t|telegram|tumblr|wordpress|blogspot|google|bitly|linktr|patreon|substack)\./i;
+      const domainFromUrl = (u?: string): string | null => {
+        if (!u) return null;
+        try { const h = new URL(u.includes("://") ? u : "https://" + u).hostname.replace(/^www\./, ""); return looksLikeDomain(h) && !PROVIDERS.test(h + ".") ? h : null; } catch { return null; }
+      };
+      const cands = new Set<string>();
+      for (const p of merged) {
+        for (const l of p.links || []) { const dm = domainFromUrl(l.url); if (dm) cands.add(dm); }
+        for (const u of extractFromText(p.bio).urls) { const dm = domainFromUrl(u); if (dm) cands.add(dm); }
+      }
+      const cand = [...cands][0];
+      if (cand) {
+        const anchor = signals.find((s) => s.id === "github") || signals.find((s) => !s.kind || s.kind === "platform");
+        const dres = await enrichDomain(cand, collectedAt, anchor?.id);
+        const haveIds = new Set(signals.map((s) => s.id));
+        for (const s of dres.signals) { s.linkedIds = undefined; if (!haveIds.has(s.id)) { signals.push(s); haveIds.add(s.id); } }
+        const byId = new Map(signals.map((s) => [s.id, s]));
+        for (const [a, b] of dres.edges) {
+          const A = byId.get(a), B = byId.get(b);
+          if (!A || !B || a === b) continue;
+          A.linkedIds = [...new Set([...(A.linkedIds || []), b])];
+          B.linkedIds = [...new Set([...(B.linkedIds || []), a])];
         }
       }
     }
